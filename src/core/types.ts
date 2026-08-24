@@ -62,8 +62,12 @@ export interface InspectOptions {
   readonly limits?: Partial<ParseLimits>;
 }
 
+export type InspectionStatus = "format-only" | "metadata-inspected";
+
 export interface MetadataReport {
   readonly format: ImageFormat;
+  readonly size: number;
+  readonly inspectionStatus: InspectionStatus;
   readonly entries: readonly MetadataEntry[];
   readonly diagnostics: readonly Diagnostic[];
 }
