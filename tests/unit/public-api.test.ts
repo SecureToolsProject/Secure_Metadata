@@ -17,11 +17,10 @@ describe("public API", () => {
   });
 
   it.each([
-    ["inspectMetadata", inspectMetadata],
     ["cleanMetadata", cleanMetadata],
     ["verifyMetadata", verifyMetadata],
   ] as const)(
-    "returns deterministic unimplemented behavior from %s",
+    "keeps deterministic unimplemented behavior for %s",
     (_, operation) => {
       expect(() => operation(new Uint8Array())).toThrowError(
         NotImplementedError,
@@ -32,14 +31,17 @@ describe("public API", () => {
     },
   );
 
-  it("accepts Uint8Array and ArrayBuffer as public binary input types", () => {
+  it("accepts Uint8Array and ArrayBuffer as public inspection inputs", () => {
     const inputs: readonly BinaryInput[] = [
       new Uint8Array(),
       new ArrayBuffer(0),
     ];
 
     for (const input of inputs) {
-      expect(() => inspectMetadata(input)).toThrowError(NotImplementedError);
+      expect(inspectMetadata(input)).toMatchObject({
+        format: "unknown",
+        inspectionStatus: "format-only",
+      });
     }
   });
 
