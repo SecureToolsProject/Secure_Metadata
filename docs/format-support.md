@@ -1,29 +1,33 @@
 # Format Support
 
-Sprint 1 implements deterministic container signature detection only. Planned parser implementation priority remains:
-
-1. JPEG
-2. WebP
-3. PNG
-
-Detection order is explicitly PNG, JPEG, WebP, then unknown. The supported signatures are distinct, so the ordering does not create heuristic ambiguity.
+| Capability                  | JPEG                              | PNG       | WebP      |
+| --------------------------- | --------------------------------- | --------- | --------- |
+| Signature detection         | Supported                         | Supported | Supported |
+| Bounded container traversal | Supported                         | Not yet   | Not yet   |
+| APP/COM classification      | Supported                         | N/A       | N/A       |
+| EXIF container detection    | Supported                         | Not yet   | Not yet   |
+| XMP container detection     | Supported, including extended XMP | Not yet   | Not yet   |
+| ICC container detection     | Supported                         | Not yet   | Not yet   |
+| IPTC/Photoshop detection    | Supported                         | Not yet   | Not yet   |
+| Metadata field decoding     | Not yet                           | Not yet   | Not yet   |
+| Cleaning                    | Not yet                           | Not yet   | Not yet   |
 
 ## JPEG
 
-**Implemented:** detection when the first two bytes are `FF D8`.
+JPEG detection requires `FF D8`. Container inspection validates marker boundaries and two-byte big-endian declared lengths, recognizes standalone markers and fill bytes, stops at EOI, and reports trailing bytes. SOS headers are traversed, while entropy-coded bytes are skipped without decoding; `FF 00`, RST0–RST7, and multiple scans are handled structurally.
 
-This does not require an EOI marker and does not validate or traverse markers or segments. APP segments, EXIF, shared TIFF IFD and GPS decoding, XMP, IPTC, comments, and ICC distinctions remain future work. Malformed trailing bytes do not change a matching Sprint 1 signature classification.
+Payload signatures identify:
 
-## WebP
+- APP0 `JFIF\0` and `JFXX\0` as technical container data;
+- APP1 `Exif\0\0` as EXIF;
+- APP1 standard and extended Adobe XMP identifiers as XMP;
+- APP2 `ICC_PROFILE\0` as ICC;
+- APP13 `Photoshop 3.0\0` as Photoshop/IPTC;
+- APP14 `Adobe` as rendering/container data;
+- COM as comment metadata.
 
-**Implemented:** detection of `RIFF` at offset 0 and `WEBP` at offset 8, requiring at least 12 bytes.
+Unknown APP payloads remain unknown. No TIFF, EXIF, XMP XML, ICC, IPTC, thumbnail, frame, Huffman, quantization, or entropy payload is decoded.
 
-The four RIFF size bytes are deliberately ignored. RIFF size validation, chunk traversal, EXIF, XMP, ICCP, image and animation payload distinctions, and VP8X consistency handling remain future work.
+## PNG and WebP
 
-## PNG
-
-**Implemented:** detection of the complete eight-byte PNG signature `89 50 4E 47 0D 0A 1A 0A`.
-
-A truncated or corrupted signature is unknown. IHDR and chunk structure are not inspected. Textual metadata, eXIf, XMP, ICC and color chunks, privacy-relevant ancillary chunks, CRC checking, and compressed metadata remain future work.
-
-`inspectionStatus: "format-only"` records this boundary in API results. A detected signature is not a claim that a file is structurally valid or that its metadata has been inspected.
+PNG requires its complete eight-byte signature. WebP requires `RIFF` at offset 0 and `WEBP` at offset 8. Their chunk structures, sizes, CRCs, metadata, and image payloads are not yet parsed.

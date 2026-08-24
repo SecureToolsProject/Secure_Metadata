@@ -70,12 +70,12 @@ describe("format-only inspection", () => {
   });
 
   it("accepts ArrayBuffer input without changing the contract", () => {
-    const input = Uint8Array.of(0xff, 0xd8).buffer;
+    const input = Uint8Array.of(0xff, 0xd8, 0xff, 0xd9).buffer;
 
     expect(inspectMetadata(input)).toMatchObject({
       format: "jpeg",
-      size: 2,
-      inspectionStatus: "format-only",
+      size: 4,
+      inspectionStatus: "container-inspected",
     });
   });
 });
