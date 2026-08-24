@@ -19,6 +19,9 @@ export interface JpegSegment {
   readonly markerName: string;
   readonly offset: number;
   readonly length: number;
+  /** Internal copy/remove range, including any marker fill bytes. */
+  readonly rangeOffset: number;
+  readonly rangeLength: number;
   readonly payloadOffset?: number;
   readonly payloadLength?: number;
   readonly kind: JpegSegmentKind;

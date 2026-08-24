@@ -1,3 +1,5 @@
+import { InvalidParseLimitError } from "./errors.js";
+
 export interface ParseLimits {
   readonly maxInputBytes: number;
   readonly maxSegments: number;
@@ -21,3 +23,14 @@ export const DEFAULT_PARSE_LIMITS: Readonly<ParseLimits> = Object.freeze({
   maxDecompressedBytes: 16 * 1024 * 1024,
   maxDiagnostics: 256,
 });
+
+export function resolveParseLimit(
+  name: keyof ParseLimits,
+  configured: number | undefined,
+): number {
+  const value = configured ?? DEFAULT_PARSE_LIMITS[name];
+  if (!Number.isSafeInteger(value) || value < 0) {
+    throw new InvalidParseLimitError(name, value);
+  }
+  return value;
+}
