@@ -1,33 +1,30 @@
 # Format Support
 
-| Capability                  | JPEG                              | PNG       | WebP      |
-| --------------------------- | --------------------------------- | --------- | --------- |
-| Signature detection         | Supported                         | Supported | Supported |
-| Bounded container traversal | Supported                         | Not yet   | Not yet   |
-| APP/COM classification      | Supported                         | N/A       | N/A       |
-| EXIF container detection    | Supported                         | Not yet   | Not yet   |
-| XMP container detection     | Supported, including extended XMP | Not yet   | Not yet   |
-| ICC container detection     | Supported                         | Not yet   | Not yet   |
-| IPTC/Photoshop detection    | Supported                         | Not yet   | Not yet   |
-| Metadata field decoding     | Not yet                           | Not yet   | Not yet   |
-| Cleaning                    | Not yet                           | Not yet   | Not yet   |
+| Capability                  | JPEG                   | PNG            | WebP           |
+| --------------------------- | ---------------------- | -------------- | -------------- |
+| Signature detection         | Supported              | Supported      | Supported      |
+| Bounded container traversal | Supported              | Not yet        | Not yet        |
+| EXIF container detection    | Supported              | Not yet        | Not yet        |
+| TIFF header and IFD0        | Supported through JPEG | Not integrated | Not integrated |
+| ExifIFD and GPSIFD          | Supported through JPEG | Not integrated | Not integrated |
+| Common EXIF/GPS fields      | Supported subset       | Not integrated | Not integrated |
+| MakerNote decoding          | Not supported          | Not supported  | Not supported  |
+| XMP payload decoding        | Not yet                | Not yet        | Not yet        |
+| IPTC/ICC payload decoding   | Not yet                | Not yet        | Not yet        |
+| Cleaning and verification   | Not yet                | Not yet        | Not yet        |
 
-## JPEG
+## TIFF/EXIF subset
 
-JPEG detection requires `FF D8`. Container inspection validates marker boundaries and two-byte big-endian declared lengths, recognizes standalone markers and fill bytes, stops at EOI, and reports trailing bytes. SOS headers are traversed, while entropy-coded bytes are skipped without decoding; `FF 00`, RST0–RST7, and multiple scans are handled structurally.
+Both `II` and `MM` byte orders are supported. Traversal covers IFD0, ExifIFDPointer, GPSInfoIFDPointer, and next-IFD links with table, entry, depth, offset, and cycle checks.
 
-Payload signatures identify:
+Decoded IFD0 tags: ImageDescription, Make, Model, Orientation, Software, DateTime, Artist, and Copyright.
 
-- APP0 `JFIF\0` and `JFXX\0` as technical container data;
-- APP1 `Exif\0\0` as EXIF;
-- APP1 standard and extended Adobe XMP identifiers as XMP;
-- APP2 `ICC_PROFILE\0` as ICC;
-- APP13 `Photoshop 3.0\0` as Photoshop/IPTC;
-- APP14 `Adobe` as rendering/container data;
-- COM as comment metadata.
+Decoded ExifIFD tags: ExposureTime, FNumber, PhotographicSensitivity, ExifVersion, DateTimeOriginal, DateTimeDigitized, FocalLength, PixelXDimension, PixelYDimension, and FocalLengthIn35mmFilm. MakerNote is named and retained as opaque structure.
 
-Unknown APP payloads remain unknown. No TIFF, EXIF, XMP XML, ICC, IPTC, thumbnail, frame, Huffman, quantization, or entropy payload is decoded.
+Decoded GPS tags: GPSVersionID, GPSLatitudeRef, GPSLatitude, GPSLongitudeRef, GPSLongitude, GPSAltitudeRef, GPSAltitude, GPSTimeStamp, and GPSDateStamp. Coordinates remain exact raw rational components plus reference fields; decimal coordinates are not derived.
 
-## PNG and WebP
+Unknown tags remain structurally represented without speculative meaning or large binary values.
 
-PNG requires its complete eight-byte signature. WebP requires `RIFF` at offset 0 and `WEBP` at offset 8. Their chunk structures, sizes, CRCs, metadata, and image payloads are not yet parsed.
+## Remaining container support
+
+JPEG marker and scan traversal remains supported. XMP, ICC, and Photoshop/IPTC signatures are container-detected only. PNG requires its complete signature and WebP requires `RIFF....WEBP`; their chunks and metadata are not parsed yet.

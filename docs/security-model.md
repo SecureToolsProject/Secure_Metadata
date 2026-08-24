@@ -1,46 +1,42 @@
 # Security Model
 
-Binary metadata parsing processes attacker-controlled structure, sizes, offsets, encodings, and nesting. Malformed files, parser crashes, excessive allocation or traversal, and incorrect offset arithmetic are security concerns.
+Binary metadata parsing processes attacker-controlled structures, sizes, offsets, encodings, and nesting. Malformed files, parser crashes, excessive allocation or traversal, and incorrect offset arithmetic are security concerns.
 
 ## Invariants
 
-1. All binary input is untrusted.
-2. All binary reads go through bounded primitives.
-3. No parser may perform unchecked offset arithmetic.
-4. Parser traversal must be hard bounded.
-5. TIFF/IFD traversal must eventually include cycle detection.
-6. Core functions must not make network requests.
-7. Core functions must not access the filesystem.
-8. The library must not decode image pixel payloads.
-9. Unknown metadata must not be deleted by inference.
-10. Privacy cleaning must preserve ICC and color data by default unless explicitly requested otherwise.
-11. Cleaning should preserve unaffected bytes byte-for-byte whenever practical.
-12. Cleaner output must be independently inspectable and verifiable.
-13. The library must never claim that an image contains no private information merely because metadata is absent.
-14. Steganography detection, malware scanning, visual redaction, and pixel-content privacy analysis are outside project scope.
+1. All binary input is untrusted and all reads use bounded primitives.
+2. Parsers perform no unchecked offset arithmetic or unbounded recursion.
+3. Parser traversal and attacker-controlled counts are hard bounded.
+4. Core functions make no network requests and access no filesystem or DOM APIs.
+5. Image pixel payloads are never decoded.
+6. Unknown metadata is not deleted or assigned speculative meaning.
+7. ICC and color data will be preserved by default during future cleaning.
+8. Cleaner output must eventually be independently inspected and verified.
+9. Metadata absence never proves an image contains no private information.
+10. Steganography detection, malware scanning, visual redaction, and pixel privacy analysis are outside scope.
 
-## Bounded binary reads
+## Bounded binary and JPEG properties
 
-Offsets and lengths must be non-negative safe integers. Ranges use `length <= inputLength - offset`, avoiding overflow-prone addition during validation. Invalid offsets, lengths, and ranges throw typed library errors before `DataView` access. A supplied `Uint8Array` retains its exact offset and length; `ArrayBuffer` normalization creates a no-copy byte view. Inspection never writes through either representation.
+Offsets and lengths must be non-negative safe integers. Ranges use subtraction-based capacity checks before access. JPEG declared segment lengths must fit completely; marker and scan loops always advance or return. `FF 00`, restart markers, multiple scans, EOI, and marker limits are handled without entropy decoding or payload copies.
 
-## JPEG-specific properties
+## TIFF-specific properties
 
-- Marker reads and fill-byte scans remain within the supplied input view.
-- Every recorded marker, including restart markers inside scans, counts toward `maxSegments`.
-- A declared segment length must be at least two and fit completely before subtraction or offset advancement.
-- APP signatures must fit within their segment payload and cannot match across segment boundaries.
-- Entropy-coded scan data is traversed but never decoded or copied.
-- `FF 00` stuffing remains data; RST0–RST7 do not terminate a scan.
-- Normal parsing resumes at non-stuffed, non-restart markers, allowing multiple SOS scans.
-- EOI stops traversal; trailing bytes produce a warning rather than being parsed as JPEG.
-- Malformed and truncated JPEGs return bounded structured diagnostics instead of uncontrolled native bounds exceptions.
+- Byte order is accepted only from explicit `II` or `MM`; magic 42 is validated before traversal.
+- The decoder receives a bounded TIFF-only view. All TIFF and IFD offsets are relative to its header, never to JPEG or APP1.
+- A full IFD table range, including the next-IFD pointer, is validated before entry iteration.
+- `count × typeSize` uses checked safe-integer multiplication before range calculations.
+- Inline values use their actual byte region and endian order; offset values must fit completely within the TIFF view.
+- `maxIfdEntries` bounds per-IFD work, `maxIfdDepth` bounds linked depth, and `maxMetadataEntries` caps total entry and queue work.
+- A visited-offset set rejects cyclic and repeated IFD references.
+- Unsupported types and invalid individual values produce diagnostics while later safe entries remain recoverable.
+- Large or extreme values are rejected before allocation or reading. Known numeric component decoding has an additional small hard cap.
+- Duplicate tags remain ordered; unknown tags retain structure without arbitrary binary payload copies.
+- MakerNote stays opaque and is never recursively interpreted.
+- RATIONAL and SRATIONAL preserve exact components; zero denominators produce diagnostics rather than division.
+- No thumbnail, TIFF image, JPEG image, or pixel data is decoded.
 
-All parser loops are iterative. Each successful branch advances its cursor or returns, which prevents non-progress cycles on hostile fill, scan, or marker data.
-
-## Hard limits
-
-`inspectMetadata` enforces `maxInputBytes` before parsing. JPEG traversal enforces `maxSegments`; unused limits remain reserved for their future parsers. Defaults are conservative safeguards rather than permanent `0.x` API guarantees.
+Every traversal or decoding loop has a validated finite count or advances a bounded cursor. Native `DataView` bounds errors are not used as control flow.
 
 ## Environment and dependencies
 
-Core code is local-only and side-effect-free. It has no network, analytics, telemetry, filesystem, DOM, or pixel-codec behavior. The package has zero runtime dependencies. Development tools are not part of the shipped runtime.
+Core code is local-only and side-effect-free. It has no network, analytics, telemetry, filesystem, DOM, or pixel-codec behavior. The package has zero runtime dependencies.

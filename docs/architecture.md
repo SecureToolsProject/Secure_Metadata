@@ -1,44 +1,34 @@
 # Architecture
 
-`secure-metadata` is organized as a side-effect-free binary library. Its current and planned flow is:
+`secure-metadata` is a side-effect-free binary library with format-specific containers and shared metadata decoders.
 
 ```text
-Input bytes                              implemented
-    ↓
-Safe binary view / bounded reads         implemented
-    ↓
-Format detection                         implemented
-    ↓
-JPEG container parser                    implemented for JPEG
-    ↓
-Metadata container classification        implemented for JPEG
-    ↓
-Metadata payload decoder                 planned
-    ↓
-Normalization / field classification     planned
-    ↓
-Policy engine and cleaner                planned
-    ↓
-Output re-inspection / verification      planned
+JPEG APP1 Exif\0\0 ─┐
+PNG eXIf (future)    ├──→ bounded TIFF/EXIF core
+WebP EXIF (future)  ─┘          ↓
+                         normalized entries
 ```
 
-## Binary core
+The TIFF decoder receives only the TIFF byte view after the six-byte EXIF identifier. It has no JPEG marker or absolute file-offset knowledge. Every TIFF offset is relative to byte zero of that view. Integration relocates decoded source offsets and diagnostics only after parsing.
 
-Input normalization returns the caller's exact `Uint8Array` view or creates a no-copy view over an `ArrayBuffer`. `ByteReader` validates offsets and lengths as non-negative safe integers and checks remaining capacity with subtraction before every read. It provides bounded unsigned 8-, 16-, and 32-bit reads, subarray views, and allocation-free signature matching.
+## TIFF core
 
-## JPEG container layer
+The decoder explicitly validates `II` or `MM`, magic value 42, and the first IFD offset. `TiffReader` centralizes endian-aware unsigned 16-/32-bit and signed 32-bit access over the bounded binary core.
 
-The iterative JPEG parser validates SOI and walks markers using the binary core. A central marker model distinguishes SOI, EOI, TEM, RST0–RST7, APP0–APP15, COM, SOS, common image-structure markers, and length-prefixed unknown markers. Repeated `FF` fill bytes are collapsed to one marker; declared lengths include their two-byte length field and must fit fully before offsets advance.
+Each IFD table is validated as a complete `2 + count × 12 + 4` byte range before entries are visited. Field sizes support BYTE, ASCII, SHORT, LONG, RATIONAL, UNDEFINED, SLONG, and SRATIONAL. Values of four bytes or fewer use the entry's inline bytes in TIFF byte order; larger values use a bounded TIFF-relative offset.
 
-After SOS, the parser scans rather than decodes entropy data. `FF 00` remains stuffed data, restart markers are recorded without terminating the scan, and the next real marker resumes normal traversal. This supports multiple scans. Every marker, including SOI, EOI, SOS, and restarts, counts toward `maxSegments`.
+Traversal uses a FIFO work queue. Root IFD0 has depth 1; ExifIFD, GPSIFD, and next-IFD work is queued deterministically in that order. A visited-offset set rejects cycles and repeated references. `maxIfdEntries` bounds each table, `maxIfdDepth` bounds linked depth, and `maxMetadataEntries` caps total processed entries and queued IFD work.
 
-APP signatures are checked within segment payload boundaries without retaining payload copies. EXIF, standard/extended XMP, ICC, Photoshop/IPTC, JFIF/JFXX, Adobe, and unknown classifications remain container-level observations.
+## Value and entry behavior
+
+Supported known values are decoded without converting exact rational pairs to floating point. ASCII stops at the first NUL within its declared count and maps non-ASCII bytes conservatively. Zero rational denominators remain represented and produce diagnostics.
+
+Unknown tags retain namespace, tag number, TIFF type, count, entry offset, and source path without exposing arbitrary payload bytes. Duplicate tags remain separate ordered entries. MakerNote is recognized but opaque and is never interpreted as nested standard TIFF.
 
 ## Inspection status
 
-- `format-only`: a signature was detected; no container parser ran. Currently PNG, WebP, unknown, and short arbitrary inputs.
-- `container-inspected`: JPEG traversal reached EOI safely.
-- `container-partial`: JPEG identity is known, but traversal stopped on a structural error, truncation, or limit.
-- `metadata-inspected`: reserved for future payload decoders.
-
-An empty entry list means no supported metadata container was recognized during the completed portion of traversal. It does not prove metadata or private information is absent.
+- `format-only`: signature detection only; currently PNG, WebP, and unknown input.
+- `container-inspected`: JPEG reached EOI and no EXIF decode was attempted.
+- `container-partial`: JPEG traversal stopped on corruption, truncation, or a limit.
+- `metadata-partial`: JPEG container traversal completed and common TIFF/EXIF decoding was attempted; XMP/IPTC/ICC and unknown fields remain incomplete.
+- `metadata-inspected`: reserved for future broader decoders.
