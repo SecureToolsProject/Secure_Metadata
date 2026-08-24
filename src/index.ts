@@ -36,6 +36,7 @@ export type {
   MetadataSource,
   MetadataValue,
   PrivacyRelevance,
+  RationalValue,
   VerificationPolicy,
   VerificationResult,
 } from "./core/types.js";
