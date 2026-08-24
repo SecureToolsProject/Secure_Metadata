@@ -32,3 +32,17 @@ Unknown tags retain namespace, tag number, TIFF type, count, entry offset, and s
 - `container-partial`: JPEG traversal stopped on corruption, truncation, or a limit.
 - `metadata-partial`: JPEG container traversal completed and common TIFF/EXIF decoding was attempted; XMP/IPTC/ICC and unknown fields remain incomplete.
 - `metadata-inspected`: reserved for future broader decoders.
+
+## JPEG clean and verify flow
+
+```text
+input JPEG
+  → bounded JPEG parser and existing APP classification
+  → direct keep/remove policy
+  → checked retained ranges
+  → one output allocation and ordered byte copies
+  → inspectMetadata(output)
+  → structured verification checks
+```
+
+The parser remains the structural source of truth. Internal rewrite ranges include marker fill bytes associated with a removed marker while public source offsets retain their existing meaning. Cleaning does not invoke TIFF decoding on the source: a structurally bounded EXIF APP1 can be removed even if its TIFF body is malformed. The post-write inspection and verifier use the normal inspection layer.

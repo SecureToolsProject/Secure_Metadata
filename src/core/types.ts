@@ -93,23 +93,54 @@ export interface MetadataReport {
 }
 
 export interface CleaningPolicy {
+  readonly removeExif?: boolean;
+  readonly removeXmp?: boolean;
+  readonly removeIptc?: boolean;
+  readonly removeComments?: boolean;
+  readonly preserveIcc?: boolean;
+  /** @deprecated Use preserveIcc. */
   readonly preserveColorProfiles?: boolean;
   readonly limits?: Partial<ParseLimits>;
 }
 
-export interface CleanResult {
-  readonly output: Uint8Array;
-  readonly report: MetadataReport;
-  readonly removedEntryIds: readonly string[];
+export interface MetadataChange {
+  readonly namespace: MetadataNamespace;
+  readonly action: "removed" | "preserved";
+  readonly name: string;
+  readonly source: MetadataSource;
 }
 
+export interface CleanResult {
+  readonly output: Uint8Array;
+  readonly format: "jpeg";
+  readonly report: MetadataReport;
+  readonly removed: readonly MetadataChange[];
+  readonly preserved: readonly MetadataChange[];
+  readonly diagnostics: readonly Diagnostic[];
+}
+
+export type VerificationExpectation = "absent" | "present" | "ignore";
+
 export interface VerificationPolicy {
+  readonly exif?: VerificationExpectation;
+  readonly xmp?: VerificationExpectation;
+  readonly iptc?: VerificationExpectation;
+  readonly comments?: VerificationExpectation;
+  readonly icc?: VerificationExpectation;
   readonly requireNoPrivacyRelevantMetadata?: boolean;
   readonly limits?: Partial<ParseLimits>;
 }
 
+export interface VerificationCheck {
+  readonly namespace: "exif" | "xmp" | "iptc" | "jpeg-comment" | "icc";
+  readonly expected: Exclude<VerificationExpectation, "ignore">;
+  readonly actual: "absent" | "present";
+  readonly passed: boolean;
+}
+
 export interface VerificationResult {
   readonly valid: boolean;
+  readonly checks: readonly VerificationCheck[];
   readonly report: MetadataReport;
   readonly diagnostics: readonly Diagnostic[];
 }

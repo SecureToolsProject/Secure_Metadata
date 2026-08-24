@@ -1,10 +1,15 @@
+import type { Diagnostic } from "./diagnostics.js";
+
 export type SecureMetadataErrorCode =
   | "NOT_IMPLEMENTED"
   | "INVALID_OFFSET"
   | "INVALID_LENGTH"
   | "OUT_OF_BOUNDS"
   | "INVALID_LIMIT"
-  | "INPUT_LIMIT_EXCEEDED";
+  | "INPUT_LIMIT_EXCEEDED"
+  | "UNSUPPORTED_FORMAT"
+  | "INCOMPLETE_JPEG"
+  | "CLEAN_OUTPUT_SIZE_INVALID";
 
 export class SecureMetadataError extends Error {
   override readonly name: string = "SecureMetadataError";
@@ -72,6 +77,34 @@ export class InputLimitExceededError extends SecureMetadataError {
     super(
       `Input length ${String(inputLength)} exceeds maxInputBytes ${String(maximumLength)}.`,
       "INPUT_LIMIT_EXCEEDED",
+    );
+  }
+}
+
+export class UnsupportedFormatError extends SecureMetadataError {
+  override readonly name: string = "UnsupportedFormatError";
+
+  constructor(
+    readonly operation: "cleanMetadata" | "verifyMetadata",
+    readonly format: "png" | "webp" | "unknown",
+  ) {
+    super(
+      `${operation} does not support ${format} input.`,
+      "UNSUPPORTED_FORMAT",
+    );
+  }
+}
+
+export class IncompleteJpegError extends SecureMetadataError {
+  override readonly name: string = "IncompleteJpegError";
+
+  constructor(
+    readonly operation: "cleanMetadata" | "verifyMetadata",
+    readonly diagnostics: readonly Diagnostic[],
+  ) {
+    super(
+      `${operation} requires a structurally complete JPEG ending at EOI.`,
+      "INCOMPLETE_JPEG",
     );
   }
 }

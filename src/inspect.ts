@@ -1,10 +1,7 @@
 import { ByteReader, toUint8Array } from "./core/binary/index.js";
 import { detectFormat } from "./core/detect-format.js";
-import {
-  InputLimitExceededError,
-  InvalidParseLimitError,
-} from "./core/errors.js";
-import { DEFAULT_PARSE_LIMITS } from "./core/limits.js";
+import { InputLimitExceededError } from "./core/errors.js";
+import { DEFAULT_PARSE_LIMITS, resolveParseLimit } from "./core/limits.js";
 import type {
   BinaryInput,
   InspectOptions,
@@ -13,29 +10,12 @@ import type {
 import { inspectJpegMetadata } from "./jpeg/metadata.js";
 import { parseJpeg } from "./jpeg/parser.js";
 
-function effectiveLimit(
-  name:
-    | "maxInputBytes"
-    | "maxSegments"
-    | "maxIfdEntries"
-    | "maxIfdDepth"
-    | "maxMetadataEntries"
-    | "maxStringBytes",
-  configured: number | undefined,
-): number {
-  const value = configured ?? DEFAULT_PARSE_LIMITS[name];
-  if (!Number.isSafeInteger(value) || value < 0) {
-    throw new InvalidParseLimitError(name, value);
-  }
-  return value;
-}
-
 export function inspectMetadata(
   input: BinaryInput,
   options?: InspectOptions,
 ): MetadataReport {
   const bytes = toUint8Array(input);
-  const maxInputBytes = effectiveLimit(
+  const maxInputBytes = resolveParseLimit(
     "maxInputBytes",
     options?.limits?.maxInputBytes,
   );
@@ -47,7 +27,7 @@ export function inspectMetadata(
   const reader = new ByteReader(bytes);
   const format = detectFormat(reader);
   if (format === "jpeg") {
-    const maxSegments = effectiveLimit(
+    const maxSegments = resolveParseLimit(
       "maxSegments",
       options?.limits?.maxSegments,
     );
@@ -57,19 +37,19 @@ export function inspectMetadata(
     );
     const tiffLimits = {
       maxIfdEntries: hasExif
-        ? effectiveLimit("maxIfdEntries", options?.limits?.maxIfdEntries)
+        ? resolveParseLimit("maxIfdEntries", options?.limits?.maxIfdEntries)
         : DEFAULT_PARSE_LIMITS.maxIfdEntries,
       maxIfdDepth: hasExif
-        ? effectiveLimit("maxIfdDepth", options?.limits?.maxIfdDepth)
+        ? resolveParseLimit("maxIfdDepth", options?.limits?.maxIfdDepth)
         : DEFAULT_PARSE_LIMITS.maxIfdDepth,
       maxMetadataEntries: hasExif
-        ? effectiveLimit(
+        ? resolveParseLimit(
             "maxMetadataEntries",
             options?.limits?.maxMetadataEntries,
           )
         : DEFAULT_PARSE_LIMITS.maxMetadataEntries,
       maxStringBytes: hasExif
-        ? effectiveLimit("maxStringBytes", options?.limits?.maxStringBytes)
+        ? resolveParseLimit("maxStringBytes", options?.limits?.maxStringBytes)
         : DEFAULT_PARSE_LIMITS.maxStringBytes,
     };
     const metadata = inspectJpegMetadata(reader, jpeg, tiffLimits);

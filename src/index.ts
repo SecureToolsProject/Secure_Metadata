@@ -1,13 +1,18 @@
 export { inspectMetadata } from "./inspect.js";
-export { cleanMetadata } from "./policy/clean.js";
-export { verifyMetadata } from "./verify/verify.js";
+export { cleanMetadata, DEFAULT_JPEG_CLEANING_POLICY } from "./policy/clean.js";
+export {
+  DEFAULT_JPEG_VERIFICATION_POLICY,
+  verifyMetadata,
+} from "./verify/verify.js";
 
 export {
   BinaryBoundsError,
+  IncompleteJpegError,
   InputLimitExceededError,
   InvalidParseLimitError,
   NotImplementedError,
   SecureMetadataError,
+  UnsupportedFormatError,
 } from "./core/errors.js";
 export { DEFAULT_PARSE_LIMITS } from "./core/limits.js";
 
@@ -29,6 +34,7 @@ export type {
   InspectionStatus,
   InspectOptions,
   MetadataCategory,
+  MetadataChange,
   MetadataContainer,
   MetadataEntry,
   MetadataNamespace,
@@ -37,6 +43,8 @@ export type {
   MetadataValue,
   PrivacyRelevance,
   RationalValue,
+  VerificationCheck,
+  VerificationExpectation,
   VerificationPolicy,
   VerificationResult,
 } from "./core/types.js";

@@ -10,8 +10,8 @@ Binary metadata parsing processes attacker-controlled structures, sizes, offsets
 4. Core functions make no network requests and access no filesystem or DOM APIs.
 5. Image pixel payloads are never decoded.
 6. Unknown metadata is not deleted or assigned speculative meaning.
-7. ICC and color data will be preserved by default during future cleaning.
-8. Cleaner output must eventually be independently inspected and verified.
+7. JPEG cleaning preserves ICC, unknown APP, and rendering/container segments by default.
+8. Cleaner output is re-inspected before it is returned.
 9. Metadata absence never proves an image contains no private information.
 10. Steganography detection, malware scanning, visual redaction, and pixel privacy analysis are outside scope.
 
@@ -40,3 +40,11 @@ Every traversal or decoding loop has a validated finite count or advances a boun
 ## Environment and dependencies
 
 Core code is local-only and side-effect-free. It has no network, analytics, telemetry, filesystem, DOM, or pixel-codec behavior. The package has zero runtime dependencies.
+
+## JPEG cleaning properties
+
+Cleaning proceeds only after bounded traversal reaches EOI. Truncated lengths, invalid marker structure, unterminated scans, and segment-limit failures produce a typed `IncompleteJpegError`; no partial output is returned. TIFF validity is not required to remove a structurally bounded EXIF APP1.
+
+Removal uses checked, non-overlapping parser ranges. Output length is a safe integer no larger than input length, one output buffer is allocated, and retained ranges are copied in original order. Entropy-coded bytes, restart markers, retained marker fill, structural segments, and bytes after EOI are neither decoded nor regenerated. Exact `Uint8Array` views are honored and caller input is never mutated.
+
+The default policy preserves every ICC and unknown APP segment. Verification proves only the requested observable container state supported by inspection. It does not prove provenance, byte preservation without an original, absence of unknown metadata, or absence of personal information in pixels or unsupported structures.

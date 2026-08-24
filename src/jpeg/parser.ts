@@ -14,6 +14,7 @@ import type { JpegParseResult, JpegSegment } from "./types.js";
 interface MarkerPosition {
   readonly marker: number;
   readonly markerOffset: number;
+  readonly rangeOffset: number;
   readonly afterMarker: number;
 }
 
@@ -73,6 +74,7 @@ function readMarker(
   return {
     marker,
     markerOffset: cursor - 1,
+    rangeOffset: offset,
     afterMarker: cursor + 1,
   };
 }
@@ -159,6 +161,8 @@ function skipScanData(
             markerName: markerName(marker),
             offset: markerOffset,
             length: 2,
+            rangeOffset: fillStart,
+            rangeLength: cursor + 1 - fillStart,
             kind: "standalone",
           },
           maxSegments,
@@ -210,6 +214,8 @@ export function parseJpeg(
         markerName: "SOI",
         offset: 0,
         length: 2,
+        rangeOffset: 0,
+        rangeLength: 2,
         kind: "standalone",
       },
       maxSegments,
@@ -226,7 +232,7 @@ export function parseJpeg(
       return incompleteResult(state, true);
     }
 
-    const { marker, markerOffset, afterMarker } = markerResult;
+    const { marker, markerOffset, rangeOffset, afterMarker } = markerResult;
     if (marker === JPEG_MARKER.SOI) {
       state.diagnostics.push(
         diagnostic(
@@ -248,6 +254,8 @@ export function parseJpeg(
             markerName: markerName(marker),
             offset: markerOffset,
             length: 2,
+            rangeOffset,
+            rangeLength: afterMarker - rangeOffset,
             kind: "standalone",
           },
           maxSegments,
@@ -327,6 +335,8 @@ export function parseJpeg(
       markerName: markerName(marker),
       offset: markerOffset,
       length: declaredLength + 2,
+      rangeOffset,
+      rangeLength: segmentEnd - rangeOffset,
       payloadOffset,
       payloadLength,
       kind: classifySegmentKind(marker),
