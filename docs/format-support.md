@@ -11,7 +11,8 @@
 | MakerNote decoding          | Not supported          | Not supported  | Not supported  |
 | XMP payload decoding        | Not yet                | Not yet        | Not yet        |
 | IPTC/ICC payload decoding   | Not yet                | Not yet        | Not yet        |
-| Cleaning and verification   | Not yet                | Not yet        | Not yet        |
+| Whole-container cleaning    | Supported              | Not yet        | Not yet        |
+| Structured verification     | Supported              | Not yet        | Not yet        |
 
 ## TIFF/EXIF subset
 
@@ -28,3 +29,9 @@ Unknown tags remain structurally represented without speculative meaning or larg
 ## Remaining container support
 
 JPEG marker and scan traversal remains supported. XMP, ICC, and Photoshop/IPTC signatures are container-detected only. PNG requires its complete signature and WebP requires `RIFF....WEBP`; their chunks and metadata are not parsed yet.
+
+## JPEG cleaning and verification
+
+JPEG Privacy Clean removes recognized EXIF, standard/extended XMP, Photoshop/IPTC, and comment segments. ICC, JFIF/JFXX, Adobe APP14, unknown APP segments, structural markers, all scan data, and trailing bytes are retained. Structurally incomplete JPEGs are rejected; malformed TIFF inside a bounded removable EXIF segment does not block cleaning.
+
+Verification reports observable container presence or absence for EXIF, XMP, IPTC, comments, and ICC. It does not decode XMP/IPTC/ICC payloads or prove preservation from an original input.
