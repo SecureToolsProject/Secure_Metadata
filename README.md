@@ -8,17 +8,17 @@ Current implementation:
 
 - bounded binary input and endian-aware read core;
 - JPEG, PNG, and WebP signature detection;
-- bounded JPEG marker and segment traversal;
-- JPEG entropy-scan skipping without image decoding;
-- JPEG EXIF, XMP, extended XMP, ICC, Photoshop/IPTC, and comment container-presence detection.
+- bounded JPEG marker, segment, and entropy-scan traversal;
+- JPEG EXIF, XMP, ICC, Photoshop/IPTC, and comment container detection;
+- shared little- and big-endian TIFF/EXIF decoder;
+- iterative IFD0, ExifIFD, GPSIFD, and next-IFD traversal with cycle and depth protection;
+- common TIFF, EXIF, and GPS field decoding with exact rational values.
 
-Not implemented: TIFF/EXIF or GPS field decoding, XML/IPTC/ICC payload decoding, PNG/WebP container parsing, metadata cleaning, and verification.
+Not implemented: MakerNote or thumbnail decoding, XMP/IPTC/ICC payload parsing, PNG/WebP container parsing, metadata cleaning, and verification.
 
 ## Format status
 
-JPEG reports can be `container-inspected` or `container-partial`. PNG and WebP remain `format-only`. See [format support](docs/format-support.md) for the precise matrix.
-
-A detected or traversed container is not necessarily a decodable image. The JPEG parser validates marker and segment boundaries, not quantization, Huffman, frame, scan-header, or entropy semantics.
+JPEG reports can be `container-inspected`, `container-partial`, or `metadata-partial`. `metadata-partial` means supported TIFF/EXIF fields were attempted while the wider metadata space remains intentionally incomplete. PNG and WebP remain `format-only`. See [format support](docs/format-support.md).
 
 ## Installation
 
@@ -34,21 +34,23 @@ import {
 } from "secure-metadata";
 ```
 
-`inspectMetadata` accepts `Uint8Array | ArrayBuffer`, enforces relevant parse limits, and returns a deterministic report. For JPEG it inventories the container and emits one normalized entry per recognized privacy/color metadata container. Entries identify container presence only; payload values are not decoded.
+`inspectMetadata` accepts `Uint8Array | ArrayBuffer`, enforces relevant parser limits, and returns deterministic normalized entries. JPEG EXIF reports retain the EXIF container entry and add decoded child entries with exact TIFF tag, type, count, source offset, and path information.
 
-`cleanMetadata` and `verifyMetadata` still throw a typed `NotImplementedError`. Node.js `Buffer` values work structurally as `Uint8Array` but are not part of the public contract.
+GPS rational components remain exact numerator/denominator pairs; decimal coordinates are not derived. Unknown TIFF tags and MakerNote are represented structurally without dumping or recursively parsing their payloads.
+
+`cleanMetadata` and `verifyMetadata` still throw a typed `NotImplementedError`.
 
 ## Security philosophy
 
-Every byte is untrusted. Binary reads use centrally checked ranges, parser input views retain their original boundaries, traversal is hard bounded, and malformed or tiny inputs are ordinary data. Unknown APP segments remain unknown and should be preserved by future cleaning. See the [security model](docs/security-model.md), [architecture](docs/architecture.md), and [cleaning policy](docs/cleaning-policy.md).
+Every byte is untrusted. All offsets are interpreted within bounded views, traversal is iterative and limited, repeated IFD offsets are rejected, and malformed entries recover without unchecked access. Unknown structures remain unknown and should be preserved by future cleaning. See the [security model](docs/security-model.md), [architecture](docs/architecture.md), and [cleaning policy](docs/cleaning-policy.md).
 
 ## Non-goals
 
-The library does not perform image decoding or encoding, visual redaction, pixel-content privacy analysis, steganography detection, or malware scanning. Absence of recognized metadata containers is never proof that an image contains no private information.
+The library does not perform image decoding or encoding, visual redaction, pixel-content privacy analysis, steganography detection, or malware scanning. Absence of recognized or decoded metadata is never proof that an image contains no private information.
 
 ## Secure Tools ecosystem
 
-This is an independent open-source library in the broader Secure Tools ecosystem. It has its own package, lifecycle, and repository; future Secure Tools integration will use a pinned browser artifact rather than coupling application code to this repository.
+This is an independent open-source library in the broader Secure Tools ecosystem. Future integration will use a pinned browser artifact rather than coupling application code to this repository.
 
 ## License
 

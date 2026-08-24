@@ -33,7 +33,19 @@ export type MetadataCategory =
 export type PrivacyRelevance =
   "sensitive" | "potentially-sensitive" | "non-sensitive" | "unknown";
 
-export type MetadataValue = string | number | boolean | Uint8Array;
+export interface RationalValue {
+  readonly numerator: number;
+  readonly denominator: number;
+}
+
+export type MetadataValue =
+  | string
+  | number
+  | boolean
+  | Uint8Array
+  | RationalValue
+  | readonly RationalValue[]
+  | readonly number[];
 
 export type MetadataContainer =
   "jpeg-segment" | "png-chunk" | "webp-chunk" | "tiff-ifd" | "unknown";
@@ -45,7 +57,10 @@ export interface MetadataSource {
   readonly length?: number;
   readonly jpegMarker?: number;
   readonly chunkType?: string;
-  readonly tiffPath?: readonly number[];
+  readonly tiffPath?: string;
+  readonly tiffTag?: number;
+  readonly tiffType?: number;
+  readonly tiffCount?: number;
 }
 
 export interface MetadataEntry {
@@ -66,6 +81,7 @@ export type InspectionStatus =
   | "format-only"
   | "container-inspected"
   | "container-partial"
+  | "metadata-partial"
   | "metadata-inspected";
 
 export interface MetadataReport {

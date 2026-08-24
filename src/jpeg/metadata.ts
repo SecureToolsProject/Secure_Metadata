@@ -1,6 +1,19 @@
+import { type ByteReader } from "../core/binary/index.js";
+import type { Diagnostic } from "../core/diagnostics.js";
 import type { MetadataEntry } from "../core/types.js";
+import {
+  metadataEntriesFromTiff,
+  relocateTiffDiagnostics,
+} from "../exif/metadata.js";
+import { parseTiff, type TiffParseLimits } from "../exif/tiff.js";
 import { JPEG_MARKER } from "./markers.js";
 import type { JpegParseResult, JpegSegment } from "./types.js";
+
+export interface JpegMetadataInspection {
+  readonly entries: readonly MetadataEntry[];
+  readonly diagnostics: readonly Diagnostic[];
+  readonly attemptedExifDecode: boolean;
+}
 
 function source(segment: JpegSegment): MetadataEntry["source"] {
   return {
@@ -12,10 +25,14 @@ function source(segment: JpegSegment): MetadataEntry["source"] {
   };
 }
 
-export function jpegMetadataEntries(
+export function inspectJpegMetadata(
+  reader: ByteReader,
   result: JpegParseResult,
-): readonly MetadataEntry[] {
+  tiffLimits: TiffParseLimits,
+): JpegMetadataInspection {
   const entries: MetadataEntry[] = [];
+  const diagnostics: Diagnostic[] = [];
+  let attemptedExifDecode = false;
 
   for (const segment of result.segments) {
     if (segment.marker === JPEG_MARKER.COM) {
@@ -31,7 +48,7 @@ export function jpegMetadataEntries(
     }
 
     switch (segment.metadataKind) {
-      case "exif":
+      case "exif": {
         entries.push({
           id: `jpeg-exif-${String(segment.offset)}`,
           namespace: "exif",
@@ -40,7 +57,31 @@ export function jpegMetadataEntries(
           privacy: "potentially-sensitive",
           source: source(segment),
         });
+        if (
+          segment.payloadOffset === undefined ||
+          segment.payloadLength === undefined
+        ) {
+          break;
+        }
+        attemptedExifDecode = true;
+        const tiffOffset = segment.payloadOffset + 6;
+        const tiffLength = segment.payloadLength - 6;
+        const tiff = parseTiff(
+          reader.slice(tiffOffset, tiffLength),
+          tiffLimits,
+        );
+        entries.push(
+          ...metadataEntriesFromTiff(tiff, {
+            format: "jpeg",
+            baseOffset: tiffOffset,
+            idPrefix: `jpeg-tiff-${String(segment.offset)}`,
+          }),
+        );
+        diagnostics.push(
+          ...relocateTiffDiagnostics(tiff.diagnostics, tiffOffset),
+        );
         break;
+      }
       case "xmp":
         entries.push({
           id: `jpeg-xmp-${String(segment.offset)}`,
@@ -79,5 +120,5 @@ export function jpegMetadataEntries(
     }
   }
 
-  return entries;
+  return { entries, diagnostics, attemptedExifDecode };
 }

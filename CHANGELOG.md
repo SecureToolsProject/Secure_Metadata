@@ -6,14 +6,16 @@ All notable changes will be documented here. The project intends to follow seman
 
 ### Added
 
-- Bounded JPEG marker and length-prefixed segment traversal.
-- Standalone, fill-byte, restart-marker, EOI, and multi-scan handling.
-- JPEG APP and COM container classification.
-- EXIF, standard/extended XMP, ICC, Photoshop/IPTC, JFIF/JFXX, and Adobe presence detection.
-- Structured malformed, truncation, trailing-data, and segment-limit diagnostics.
-- Normalized JPEG metadata-container entries and complete/partial container status.
-- Bounded binary reader, no-copy input normalization, and JPEG/PNG/WebP format detection.
-- Binary boundary, sliced-view, format, malformed-input, and JPEG container tests.
+- Shared bounded little- and big-endian TIFF/EXIF decoder.
+- Iterative IFD0, ExifIFD, GPSIFD, and next-IFD traversal.
+- IFD entry/depth limits and repeated-offset cycle protection.
+- Inline and TIFF-relative offset value handling for common field types.
+- Exact RATIONAL/SRATIONAL, conservative ASCII, and full-range LONG/SLONG decoding.
+- Common IFD0, ExifIFD, and GPS tag normalization with deterministic source paths.
+- JPEG EXIF child-field inspection through bounded TIFF-only subviews.
+- Structured malformed header, table, pointer, value, type, rational, limit, and cycle diagnostics.
+- Bounded JPEG marker traversal and EXIF/XMP/ICC/IPTC container detection.
+- Binary boundary, JPEG container, TIFF endian, malformed, cycle, and integration tests.
 
 ### Foundation
 

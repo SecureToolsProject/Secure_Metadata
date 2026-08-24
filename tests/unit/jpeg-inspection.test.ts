@@ -168,8 +168,8 @@ describe("JPEG inspection safety and status", () => {
 
     expect(report).toMatchObject({
       size: embedded.byteLength,
-      inspectionStatus: "container-inspected",
-      diagnostics: [],
+      inspectionStatus: "metadata-partial",
+      diagnostics: [expect.objectContaining({ code: "TIFF_TRUNCATED_HEADER" })],
     });
     expect(report.entries[0]?.source.offset).toBe(2);
   });
