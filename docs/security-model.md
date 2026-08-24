@@ -1,6 +1,6 @@
 # Security Model
 
-Binary metadata parsing processes attacker-controlled structure, sizes, offsets, encodings, and nesting. The project therefore treats malformed files, parser panics, excessive allocation or traversal, and incorrect offset arithmetic as security concerns.
+Binary metadata parsing processes attacker-controlled structure, sizes, offsets, encodings, and nesting. Malformed files, parser crashes, excessive allocation or traversal, and incorrect offset arithmetic are security concerns.
 
 ## Invariants
 
@@ -21,15 +21,25 @@ Binary metadata parsing processes attacker-controlled structure, sizes, offsets,
 
 ## Bounded binary reads
 
-Offsets and lengths must be non-negative safe integers. Ranges are checked with `length <= inputLength - offset`, avoiding overflow-prone addition during validation. Invalid offsets, invalid lengths, and out-of-bounds ranges throw typed library errors before `DataView` access. Signature mismatches and insufficient signature bytes return `false` rather than throwing.
+Offsets and lengths must be non-negative safe integers. Ranges use `length <= inputLength - offset`, avoiding overflow-prone addition during validation. Invalid offsets, lengths, and ranges throw typed library errors before `DataView` access. A supplied `Uint8Array` retains its exact offset and length; `ArrayBuffer` normalization creates a no-copy byte view. Inspection never writes through either representation.
 
-Normalization does not copy whole inputs. A supplied `Uint8Array` retains its exact offset and length, so bytes elsewhere in its backing buffer are inaccessible to the reader. An `ArrayBuffer` receives a no-copy byte view. The inspector never writes through either representation.
+## JPEG-specific properties
+
+- Marker reads and fill-byte scans remain within the supplied input view.
+- Every recorded marker, including restart markers inside scans, counts toward `maxSegments`.
+- A declared segment length must be at least two and fit completely before subtraction or offset advancement.
+- APP signatures must fit within their segment payload and cannot match across segment boundaries.
+- Entropy-coded scan data is traversed but never decoded or copied.
+- `FF 00` stuffing remains data; RST0–RST7 do not terminate a scan.
+- Normal parsing resumes at non-stuffed, non-restart markers, allowing multiple SOS scans.
+- EOI stops traversal; trailing bytes produce a warning rather than being parsed as JPEG.
+- Malformed and truncated JPEGs return bounded structured diagnostics instead of uncontrolled native bounds exceptions.
+
+All parser loops are iterative. Each successful branch advances its cursor or returns, which prevents non-progress cycles on hostile fill, scan, or marker data.
 
 ## Hard limits
 
-`inspectMetadata` enforces the effective `maxInputBytes` before detection and allocation-intensive parsing. Other default limits remain reserved for the parsers that will use them. The defaults are exported as `DEFAULT_PARSE_LIMITS`; they are conservative safeguards, not permanent API guarantees, and may evolve during `0.x` development.
-
-Limits complement bounds checks; they do not replace them. Future parsers must fail safely or produce bounded diagnostics rather than crash on malformed input.
+`inspectMetadata` enforces `maxInputBytes` before parsing. JPEG traversal enforces `maxSegments`; unused limits remain reserved for their future parsers. Defaults are conservative safeguards rather than permanent `0.x` API guarantees.
 
 ## Environment and dependencies
 

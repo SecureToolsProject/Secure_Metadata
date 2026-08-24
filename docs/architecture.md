@@ -1,6 +1,6 @@
 # Architecture
 
-`secure-metadata` is organized as a side-effect-free binary library. Its planned data flow is:
+`secure-metadata` is organized as a side-effect-free binary library. Its current and planned flow is:
 
 ```text
 Input bytes                              implemented
@@ -9,35 +9,36 @@ Safe binary view / bounded reads         implemented
     ↓
 Format detection                         implemented
     ↓
-Container parser                         planned
+JPEG container parser                    implemented for JPEG
     ↓
-Metadata decoder                         planned
+Metadata container classification        implemented for JPEG
     ↓
-Metadata normalization/classification    planned
+Metadata payload decoder                 planned
     ↓
-Inspector / policy engine                planned
+Normalization / field classification     planned
     ↓
-Cleaner                                  planned
+Policy engine and cleaner                planned
     ↓
-Output bytes                              planned
-    ↓
-Re-inspection / verification             planned
+Output re-inspection / verification      planned
 ```
 
 ## Binary core
 
-All future format parsers build on `src/core/binary`. Input normalization returns the caller's exact `Uint8Array` view or creates a no-copy view over an `ArrayBuffer`. `ByteReader` validates offsets and lengths as non-negative safe integers and checks remaining capacity with subtraction before every read. It provides bounded unsigned 8-, 16-, and 32-bit reads in both endian orders, subarray views, and allocation-free signature matching.
+Input normalization returns the caller's exact `Uint8Array` view or creates a no-copy view over an `ArrayBuffer`. `ByteReader` validates offsets and lengths as non-negative safe integers and checks remaining capacity with subtraction before every read. It provides bounded unsigned 8-, 16-, and 32-bit reads, subarray views, and allocation-free signature matching.
 
-`ByteReader` is an internal implementation primitive, not part of the stable package exports. Its `DataView` is constrained to the input view's `byteOffset` and `byteLength`, and accesses occur only after project-owned bounds validation.
+## JPEG container layer
 
-## Layer boundaries
+The iterative JPEG parser validates SOI and walks markers using the binary core. A central marker model distinguishes SOI, EOI, TEM, RST0–RST7, APP0–APP15, COM, SOS, common image-structure markers, and length-prefixed unknown markers. Repeated `FF` fill bytes are collapsed to one marker; declared lengths include their two-byte length field and must fit fully before offsets advance.
 
-- **Format detection** identifies PNG, JPEG, and WebP signatures in that explicit order. It does not imply structural validity.
-- **Container parsing** will identify and bound JPEG segments, PNG chunks, or WebP RIFF chunks without decoding pixels.
-- **Metadata decoding** will interpret known metadata payloads. EXIF/TIFF will be one shared decoder reused by JPEG, PNG, and WebP.
-- **Normalization and classification** maps format-specific fields to stable namespaces and semantic categories.
-- **Privacy relevance** is an independent description of whether an entry can concern privacy. It is not a contextual risk score.
-- **Cleaning policy** decides which proven structures to remove while preserving required, color, rendering, image-payload, and unknown data by default.
-- **Verification** independently re-inspects cleaner output and compares it with an explicit expectation.
+After SOS, the parser scans rather than decodes entropy data. `FF 00` remains stuffed data, restart markers are recorded without terminating the scan, and the next real marker resumes normal traversal. This supports multiple scans. Every marker, including SOI, EOI, SOS, and restarts, counts toward `maxSegments`.
 
-`inspectMetadata` currently stops after detection and returns `inspectionStatus: "format-only"`. Empty entries therefore mean “not decoded,” not “confirmed absent.” Public APIs remain free of filesystem, network, browser-global, and other environmental side effects.
+APP signatures are checked within segment payload boundaries without retaining payload copies. EXIF, standard/extended XMP, ICC, Photoshop/IPTC, JFIF/JFXX, Adobe, and unknown classifications remain container-level observations.
+
+## Inspection status
+
+- `format-only`: a signature was detected; no container parser ran. Currently PNG, WebP, unknown, and short arbitrary inputs.
+- `container-inspected`: JPEG traversal reached EOI safely.
+- `container-partial`: JPEG identity is known, but traversal stopped on a structural error, truncation, or limit.
+- `metadata-inspected`: reserved for future payload decoders.
+
+An empty entry list means no supported metadata container was recognized during the completed portion of traversal. It does not prove metadata or private information is absent.
