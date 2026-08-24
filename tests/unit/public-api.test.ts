@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import {
   cleanMetadata,
   inspectMetadata,
-  NotImplementedError,
   verifyMetadata,
   type BinaryInput,
   type MetadataEntry,
@@ -15,21 +14,6 @@ describe("public API", () => {
     expect(cleanMetadata).toBeTypeOf("function");
     expect(verifyMetadata).toBeTypeOf("function");
   });
-
-  it.each([
-    ["cleanMetadata", cleanMetadata],
-    ["verifyMetadata", verifyMetadata],
-  ] as const)(
-    "keeps deterministic unimplemented behavior for %s",
-    (_, operation) => {
-      expect(() => operation(new Uint8Array())).toThrowError(
-        NotImplementedError,
-      );
-      expect(() => operation(new Uint8Array())).toThrowError(
-        expect.objectContaining({ code: "NOT_IMPLEMENTED" }),
-      );
-    },
-  );
 
   it("accepts Uint8Array and ArrayBuffer as public inspection inputs", () => {
     const inputs: readonly BinaryInput[] = [
