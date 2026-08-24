@@ -10,11 +10,17 @@ import type {
   InspectOptions,
   MetadataReport,
 } from "./core/types.js";
-import { jpegMetadataEntries } from "./jpeg/metadata.js";
+import { inspectJpegMetadata } from "./jpeg/metadata.js";
 import { parseJpeg } from "./jpeg/parser.js";
 
 function effectiveLimit(
-  name: "maxInputBytes" | "maxSegments",
+  name:
+    | "maxInputBytes"
+    | "maxSegments"
+    | "maxIfdEntries"
+    | "maxIfdDepth"
+    | "maxMetadataEntries"
+    | "maxStringBytes",
   configured: number | undefined,
 ): number {
   const value = configured ?? DEFAULT_PARSE_LIMITS[name];
@@ -46,14 +52,37 @@ export function inspectMetadata(
       options?.limits?.maxSegments,
     );
     const jpeg = parseJpeg(reader, maxSegments);
+    const hasExif = jpeg.segments.some(
+      ({ metadataKind }) => metadataKind === "exif",
+    );
+    const tiffLimits = {
+      maxIfdEntries: hasExif
+        ? effectiveLimit("maxIfdEntries", options?.limits?.maxIfdEntries)
+        : DEFAULT_PARSE_LIMITS.maxIfdEntries,
+      maxIfdDepth: hasExif
+        ? effectiveLimit("maxIfdDepth", options?.limits?.maxIfdDepth)
+        : DEFAULT_PARSE_LIMITS.maxIfdDepth,
+      maxMetadataEntries: hasExif
+        ? effectiveLimit(
+            "maxMetadataEntries",
+            options?.limits?.maxMetadataEntries,
+          )
+        : DEFAULT_PARSE_LIMITS.maxMetadataEntries,
+      maxStringBytes: hasExif
+        ? effectiveLimit("maxStringBytes", options?.limits?.maxStringBytes)
+        : DEFAULT_PARSE_LIMITS.maxStringBytes,
+    };
+    const metadata = inspectJpegMetadata(reader, jpeg, tiffLimits);
     return {
       format,
       size: bytes.byteLength,
-      inspectionStatus: jpeg.complete
-        ? "container-inspected"
-        : "container-partial",
-      entries: jpegMetadataEntries(jpeg),
-      diagnostics: jpeg.diagnostics,
+      inspectionStatus: !jpeg.complete
+        ? "container-partial"
+        : metadata.attemptedExifDecode
+          ? "metadata-partial"
+          : "container-inspected",
+      entries: metadata.entries,
+      diagnostics: [...jpeg.diagnostics, ...metadata.diagnostics],
     };
   }
 
