@@ -26,6 +26,8 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
+    "fuzz:smoke": "npm run build --silent && node scripts/fuzz.mjs --seed 20260825 --runs 250 --max-bytes 512",
+    "fuzz": "npm run build --silent && node scripts/fuzz.mjs",
     "typecheck": "tsc --noEmit"
   },
   "engines": {
