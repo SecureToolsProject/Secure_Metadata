@@ -6,6 +6,11 @@ All notable changes will be documented here. The project intends to follow seman
 
 ### Added
 
+- Bounded PNG chunk parsing with chunk-count, IEND, trailing-data, type, range, CRC-field, and compact CRC-32 validation.
+- PNG text, exact XMP `iTXt`, `eXIf`, ICC, timestamp, rendering/color, APNG, and unknown ancillary classification.
+- Shared TIFF/EXIF field decoding for exact bounded PNG `eXIf` data views.
+- Deterministic PNG Privacy Clean and verification with single-allocation reconstruction and byte-identical retained chunks, CRCs, IDAT/APNG data, and trailing bytes.
+
 - Bounded WebP RIFF/chunk parsing with declared-size, padding, VP8X, and chunk-count validation.
 - WebP EXIF, XMP, and ICCP container inspection with image/alpha/animation distinction.
 - Deterministic WebP Privacy Clean with RIFF-size and VP8X metadata-flag repair.

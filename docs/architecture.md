@@ -1,63 +1,40 @@
 # Architecture
 
-`secure-metadata` is a side-effect-free binary library with format-specific containers and shared metadata decoders.
+`secure-metadata` is a side-effect-free binary library with format-specific containers and a shared metadata decoder.
 
 ```text
 JPEG APP1 Exif\0\0 ─┐
-PNG eXIf (future)    ┴──→ bounded TIFF/EXIF core → normalized entries
-WebP EXIF                → normalized container entry only
+PNG eXIf             ┴──→ bounded TIFF/EXIF core → normalized entries
+WebP EXIF                 → normalized container entry only
 ```
 
-JPEG integration passes the TIFF decoder only the byte view after the six-byte EXIF identifier. The decoder has no JPEG marker or absolute file-offset knowledge. Every TIFF offset is relative to byte zero of that view. Integration relocates decoded source offsets and diagnostics only after parsing.
+JPEG passes the TIFF decoder the view after its six-byte EXIF identifier. PNG passes the exact `eXIf` data view directly. In both cases TIFF offset zero is the beginning of that bounded view; integrations relocate source offsets and diagnostics only after parsing.
 
 ## TIFF core
 
-The decoder explicitly validates `II` or `MM`, magic value 42, and the first IFD offset. `TiffReader` centralizes endian-aware unsigned 16-/32-bit and signed 32-bit access over the bounded binary core.
-
-Each IFD table is validated as a complete `2 + count × 12 + 4` byte range before entries are visited. Field sizes support BYTE, ASCII, SHORT, LONG, RATIONAL, UNDEFINED, SLONG, and SRATIONAL. Values of four bytes or fewer use the entry's inline bytes in TIFF byte order; larger values use a bounded TIFF-relative offset.
-
-Traversal uses a FIFO work queue. Root IFD0 has depth 1; ExifIFD, GPSIFD, and next-IFD work is queued deterministically in that order. A visited-offset set rejects cycles and repeated references. `maxIfdEntries` bounds each table, `maxIfdDepth` bounds linked depth, and `maxMetadataEntries` caps total processed entries and queued IFD work.
-
-## Value and entry behavior
-
-Supported known values are decoded without converting exact rational pairs to floating point. ASCII stops at the first NUL within its declared count and maps non-ASCII bytes conservatively. Zero rational denominators remain represented and produce diagnostics.
-
-Unknown tags retain namespace, tag number, TIFF type, count, entry offset, and source path without exposing arbitrary payload bytes. Duplicate tags remain separate ordered entries. MakerNote is recognized but opaque and is never interpreted as nested standard TIFF.
+The decoder validates byte order, magic 42, complete IFD tables, field sizes, offset values, and linked traversal. A FIFO queue plus visited-offset set provides deterministic IFD0, ExifIFD, GPSIFD, and next-IFD traversal. `maxIfdEntries`, `maxIfdDepth`, `maxMetadataEntries`, and `maxStringBytes` bound work. Known values retain exact rationals; unknown tags remain structural, and MakerNote stays opaque.
 
 ## Inspection status
 
-- `format-only`: signature detection only; currently PNG and unknown input.
-- `container-inspected`: JPEG or WebP container traversal completed without deep metadata decoding.
-- `container-partial`: JPEG or WebP traversal stopped on corruption, truncation, structural invalidity, or a limit.
-- `metadata-partial`: JPEG container traversal completed and common TIFF/EXIF decoding was attempted; XMP/IPTC/ICC and unknown fields remain incomplete.
+- `format-only`: unknown input where only format detection applies.
+- `container-inspected`: complete JPEG, WebP, or PNG traversal without TIFF decoding.
+- `container-partial`: traversal stopped on structural invalidity or a limit.
+- `metadata-partial`: complete JPEG or PNG traversal where common TIFF/EXIF decoding was attempted while broader metadata remains intentionally opaque.
 - `metadata-inspected`: reserved for future broader decoders.
 
-## JPEG clean and verify flow
+## Cleaning flows
+
+JPEG and WebP use their format-specific parsers and reconstruction rules. JPEG copies retained marker/scan ranges into one output. WebP copies retained chunks, repairs RIFF size, and aligns retained VP8X metadata bits.
 
 ```text
-input JPEG
-  → bounded JPEG parser and existing APP classification
+PNG bytes
+  → bounded PNG chunk parser and metadata classification
+  → shared TIFF decoder for eXIf inspection
   → direct keep/remove policy
-  → checked retained ranges
+  → checked retained physical ranges
   → one output allocation and ordered byte copies
   → inspectMetadata(output)
   → structured verification checks
 ```
 
-The parser remains the structural source of truth. Internal rewrite ranges include marker fill bytes associated with a removed marker while public source offsets retain their existing meaning. Cleaning does not invoke TIFF decoding on the source: a structurally bounded EXIF APP1 can be removed even if its TIFF body is malformed. The post-write inspection and verifier use the normal inspection layer.
-
-## WebP clean and verify flow
-
-```text
-WebP bytes
-  → bounded RIFF/WebP parser and FourCC classification
-  → direct EXIF/XMP/ICC policy
-  → retained chunks
-  → minimal VP8X metadata-bit patch
-  → RIFF size patch
-  → one output allocation and ordered chunk copies
-  → inspectMetadata(output)
-  → structured verification checks
-```
-
-Chunk payloads remain bounded views and image, alpha, and animation bytes are opaque. The cleaner does not synthesize VP8X; a valid retained VP8X has only its ICC, EXIF, and XMP bits aligned with actual retained chunks. Bytes outside the declared RIFF container are copied as uninterpreted trailing data.
+The PNG cleaner parses the source once for boundaries, never routes decisions through semantic entries, and does not decode TIFF before removing a bounded `eXIf`. It copies the signature, retained complete chunks, and bytes after IEND. Retained length/type/data/CRC bytes and relative order are unchanged. IDAT, APNG, compressed text, and ICC payloads stay opaque.

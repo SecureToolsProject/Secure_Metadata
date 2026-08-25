@@ -7,23 +7,18 @@
 Current implementation:
 
 - bounded binary input and endian-aware read core;
-- JPEG, PNG, and WebP signature detection;
-- bounded JPEG marker, segment, and entropy-scan traversal;
-- JPEG EXIF, XMP, ICC, Photoshop/IPTC, and comment container detection;
-- shared little- and big-endian TIFF/EXIF decoder;
-- iterative IFD0, ExifIFD, GPSIFD, and next-IFD traversal with cycle and depth protection;
-- common TIFF, EXIF, and GPS field decoding with exact rational values;
-- deterministic whole-segment JPEG Privacy Clean with byte-preserving reconstruction;
-- structured JPEG verification for observable container presence or absence;
-- bounded WebP RIFF/chunk inspection with EXIF, XMP, and ICCP container detection;
-- deterministic WebP Privacy Clean with RIFF-size and VP8X metadata-flag repair;
-- structured WebP verification for EXIF, XMP, and ICC presence.
+- JPEG inspection, common TIFF/EXIF decoding, whole-segment Privacy Clean, and verification;
+- WebP RIFF/chunk inspection, EXIF/XMP/ICC container detection, Privacy Clean, and verification;
+- PNG chunk inspection with text, XMP, EXIF, ICC, timestamp, rendering, and APNG classification;
+- shared TIFF/EXIF decoding for JPEG EXIF and PNG `eXIf` payloads;
+- deterministic PNG Privacy Clean and verification with retained chunks and CRC bytes preserved exactly;
+- iterative IFD0, ExifIFD, GPSIFD, and next-IFD traversal with cycle and depth protection.
 
-Not implemented: MakerNote or thumbnail decoding, XMP/IPTC/ICC payload parsing, WebP EXIF field decoding, and PNG container parsing, cleaning, or verification.
+Not implemented: MakerNote or thumbnail decoding, XMP/IPTC/ICC payload parsing, WebP EXIF field decoding, compressed PNG text or ICC decompression, and image/pixel decoding.
 
 ## Format status
 
-JPEG reports can be `container-inspected`, `container-partial`, or `metadata-partial`. `metadata-partial` means supported TIFF/EXIF fields were attempted while the wider metadata space remains intentionally incomplete. WebP reports are `container-inspected` or `container-partial` and expose metadata containers only. PNG remains `format-only`. See [format support](docs/format-support.md).
+JPEG supports bounded inspection, common TIFF/EXIF field decoding, cleaning, and verification. WebP supports bounded RIFF/chunk inspection and container-level cleaning and verification. PNG supports bounded chunk inspection, direct shared-TIFF decoding of `eXIf`, container-level cleaning, and verification. Compressed `zTXt`, compressed `iTXt`, and `iCCP` payloads remain opaque. See [format support](docs/format-support.md).
 
 ## Installation
 
@@ -39,17 +34,17 @@ import {
 } from "secure-metadata";
 ```
 
-`inspectMetadata` accepts `Uint8Array | ArrayBuffer`, enforces relevant parser limits, and returns deterministic normalized entries. JPEG EXIF reports retain the EXIF container entry and add decoded child entries with exact TIFF tag, type, count, source offset, and path information.
+`inspectMetadata` accepts `Uint8Array | ArrayBuffer`, enforces relevant parser limits, and returns deterministic normalized entries. JPEG and PNG EXIF reports retain the EXIF container entry and add decoded child entries with exact TIFF tag, type, count, source offset, and path information.
 
 GPS rational components remain exact numerator/denominator pairs; decimal coordinates are not derived. Unknown TIFF tags and MakerNote are represented structurally without dumping or recursively parsing their payloads.
 
-`cleanMetadata` supports JPEG and WebP. JPEG Privacy Clean removes EXIF, standard/extended XMP, Photoshop/IPTC, and COM segments while preserving ICC, JFIF/JFXX, Adobe APP14, unknown APP segments, structural data, scan bytes, and trailing bytes. WebP Privacy Clean removes EXIF and XMP chunks while preserving ICCP, VP8/VP8L, VP8X, ALPH, ANIM/ANMF, unknown chunks, and trailing bytes; it repairs RIFF size and VP8X metadata flags.
+`cleanMetadata` supports JPEG, WebP, and PNG. JPEG removes EXIF, XMP, Photoshop/IPTC, and comments. WebP removes EXIF and XMP while repairing RIFF size and applicable VP8X flags. PNG removes `eXIf`, XMP `iTXt`, ordinary `tEXt`/`zTXt`/`iTXt`, and `tIME`; it preserves `iCCP`, rendering/color chunks, image and APNG chunks, unknown chunks, critical chunks, and trailing bytes. All formats preserve ICC by default.
 
-`verifyMetadata` supports `absent`, `present`, or `ignore` expectations. JPEG defaults check EXIF, XMP, IPTC, and comments; WebP defaults check EXIF and XMP. Single-file verification observes presence or absence and cannot prove that bytes came from an original file.
+`verifyMetadata` supports `absent`, `present`, or `ignore` expectations. PNG defaults check EXIF, XMP, ordinary text, and timestamps, while ICC is ignored unless explicitly requested. Single-file verification observes supported container presence or absence and cannot prove provenance or pixel privacy.
 
 ## Security philosophy
 
-Every byte is untrusted. All offsets are interpreted within bounded views, traversal is iterative and limited, repeated IFD offsets are rejected, and malformed entries recover without unchecked access. Unknown JPEG APP segments and WebP chunks remain unknown and are preserved by cleaning. See the [security model](docs/security-model.md), [architecture](docs/architecture.md), and [cleaning policy](docs/cleaning-policy.md).
+Every byte is untrusted. All offsets are interpreted within bounded views, traversal is iterative and limited, and malformed structures fail without unchecked access. PNG image data and compressed metadata are never inflated. Unknown JPEG APP segments, WebP chunks, and PNG ancillary chunks are preserved by default. See the [security model](docs/security-model.md), [architecture](docs/architecture.md), and [cleaning policy](docs/cleaning-policy.md).
 
 ## Non-goals
 
