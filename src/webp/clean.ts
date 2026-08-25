@@ -8,31 +8,21 @@ import type {
   MetadataNamespace,
 } from "../core/types.js";
 import { inspectMetadata } from "../inspect.js";
+import {
+  DEFAULT_CLEANING_POLICY,
+  normalizeCleaningPolicy,
+  type NormalizedCleaningPolicy,
+} from "../policy/normalize.js";
 import { WEBP_VP8X_FLAG, WEBP_VP8X_METADATA_MASK } from "./chunks.js";
 import { parseWebP } from "./parser.js";
 import type { WebPChunk } from "./types.js";
 
-export const DEFAULT_WEBP_CLEANING_POLICY = Object.freeze({
-  removeExif: true,
-  removeXmp: true,
-  preserveIcc: true,
-});
+export const DEFAULT_WEBP_CLEANING_POLICY = DEFAULT_CLEANING_POLICY;
 
-interface EffectivePolicy {
-  readonly removeExif: boolean;
-  readonly removeXmp: boolean;
-  readonly preserveIcc: boolean;
-}
-
-function effectivePolicy(policy: CleaningPolicy | undefined): EffectivePolicy {
-  return {
-    removeExif: policy?.removeExif ?? true,
-    removeXmp: policy?.removeXmp ?? true,
-    preserveIcc: policy?.preserveIcc ?? policy?.preserveColorProfiles ?? true,
-  };
-}
-
-function shouldRemove(chunk: WebPChunk, policy: EffectivePolicy): boolean {
+function shouldRemove(
+  chunk: WebPChunk,
+  policy: NormalizedCleaningPolicy,
+): boolean {
   switch (chunk.metadataKind) {
     case "exif":
       return policy.removeExif;
@@ -84,12 +74,19 @@ export function cleanWebP(
   const parsed = parseWebP(
     new ByteReader(bytes),
     resolveParseLimit("maxChunks", policy?.limits?.maxChunks),
+    resolveParseLimit("maxDiagnostics", policy?.limits?.maxDiagnostics),
   );
   if (!parsed.complete) {
-    throw new IncompleteWebPError("cleanMetadata", parsed.diagnostics);
+    throw new IncompleteWebPError(
+      "cleanMetadata",
+      parsed.diagnostics.slice(
+        0,
+        resolveParseLimit("maxDiagnostics", policy?.limits?.maxDiagnostics),
+      ),
+    );
   }
 
-  const resolved = effectivePolicy(policy);
+  const resolved = normalizeCleaningPolicy(policy);
   const removals = parsed.chunks.filter((chunk) =>
     shouldRemove(chunk, resolved),
   );

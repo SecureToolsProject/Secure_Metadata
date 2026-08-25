@@ -17,36 +17,20 @@ import type {
 import { inspectMetadata } from "../inspect.js";
 import { parseJpeg } from "../jpeg/parser.js";
 import type { JpegSegment } from "../jpeg/types.js";
+import {
+  DEFAULT_CLEANING_POLICY,
+  normalizeCleaningPolicy,
+  type NormalizedCleaningPolicy,
+} from "./normalize.js";
 import { cleanPng } from "../png/clean.js";
 import { cleanWebP } from "../webp/clean.js";
 
-export const DEFAULT_JPEG_CLEANING_POLICY = Object.freeze({
-  removeExif: true,
-  removeXmp: true,
-  removeIptc: true,
-  removeComments: true,
-  preserveIcc: true,
-});
+export const DEFAULT_JPEG_CLEANING_POLICY = DEFAULT_CLEANING_POLICY;
 
-interface EffectivePolicy {
-  readonly removeExif: boolean;
-  readonly removeXmp: boolean;
-  readonly removeIptc: boolean;
-  readonly removeComments: boolean;
-  readonly preserveIcc: boolean;
-}
-
-function effectivePolicy(policy: CleaningPolicy | undefined): EffectivePolicy {
-  return {
-    removeExif: policy?.removeExif ?? true,
-    removeXmp: policy?.removeXmp ?? true,
-    removeIptc: policy?.removeIptc ?? true,
-    removeComments: policy?.removeComments ?? true,
-    preserveIcc: policy?.preserveIcc ?? policy?.preserveColorProfiles ?? true,
-  };
-}
-
-function shouldRemove(segment: JpegSegment, policy: EffectivePolicy): boolean {
+function shouldRemove(
+  segment: JpegSegment,
+  policy: NormalizedCleaningPolicy,
+): boolean {
   if (segment.kind === "comment") {
     return policy.removeComments;
   }
@@ -219,12 +203,19 @@ export function cleanMetadata(
   const jpeg = parseJpeg(
     reader,
     resolveParseLimit("maxSegments", policy?.limits?.maxSegments),
+    resolveParseLimit("maxDiagnostics", policy?.limits?.maxDiagnostics),
   );
   if (!jpeg.complete) {
-    throw new IncompleteJpegError("cleanMetadata", jpeg.diagnostics);
+    throw new IncompleteJpegError(
+      "cleanMetadata",
+      jpeg.diagnostics.slice(
+        0,
+        resolveParseLimit("maxDiagnostics", policy?.limits?.maxDiagnostics),
+      ),
+    );
   }
 
-  const resolved = effectivePolicy(policy);
+  const resolved = normalizeCleaningPolicy(policy);
   const removals = jpeg.segments.filter((segment) =>
     shouldRemove(segment, resolved),
   );
