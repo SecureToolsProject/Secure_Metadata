@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>secure-metadata browser smoke</title>
+  </head>
+  <body>
+    <p id="status">RUNNING</p>
+    <script type="module">
+      import {
+        cleanMetadata,
+        inspectMetadata,
+        verifyMetadata,
+      } from "/dist/browser/secure-metadata.js";
+
+      try {
+        const input = Uint8Array.of(0xff, 0xd8, 0xff, 0xd9);
+        const inspected = inspectMetadata(input);
+        const cleaned = cleanMetadata(input);
+        const verified = verifyMetadata(cleaned.output);
+        globalThis.__secureMetadataSmoke = {
+          ok: true,
+          format: inspected.format,
+          inspectionStatus: inspected.inspectionStatus,
+          output: Array.from(cleaned.output),
+          valid: verified.valid,
+        };
+        document.querySelector("#status").textContent = "PASS";
+      } catch (error) {
+        globalThis.__secureMetadataSmoke = {
+          ok: false,
+          error: error instanceof Error ? error.stack : String(error),
+        };
+        document.querySelector("#status").textContent = "FAIL";
+      }
+    </script>
+  </body>
+</html>

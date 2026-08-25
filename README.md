@@ -22,7 +22,11 @@ JPEG supports bounded inspection, common TIFF/EXIF field decoding, cleaning, and
 
 ## Installation
 
-The package is not published. Installation instructions will be added for the first pre-release.
+After publication, install from npm:
+
+    npm install secure-metadata
+
+Node.js 20 or newer is required. Browser consumers may import the secure-metadata/browser entry through a bundler, or deploy the versioned standalone browser artifact from the release candidate on the same origin. The library never loads code from a CDN.
 
 ## Public API
 
@@ -48,7 +52,7 @@ The deterministic corpus is supplemented by fixed-seed property tests and a fini
 
 ## Security philosophy
 
-Every byte is untrusted. All offsets are interpreted within bounded views, traversal is iterative and limited, and malformed structures fail without unchecked access. PNG image data and compressed metadata are never inflated. Unknown JPEG APP segments, WebP chunks, and PNG ancillary chunks are preserved by default. See the [security model](docs/security-model.md), [architecture](docs/architecture.md), [testing model](docs/testing.md), and [cleaning policy](docs/cleaning-policy.md).
+Every byte is untrusted. All offsets are interpreted within bounded views, traversal is iterative and limited, and malformed structures fail without unchecked access. PNG image data and compressed metadata are never inflated. Unknown JPEG APP segments, WebP chunks, and PNG ancillary chunks are preserved by default. See the [security model](docs/security-model.md), [architecture](docs/architecture.md), [testing model](docs/testing.md), [cleaning policy](docs/cleaning-policy.md), [v0.1 API contract](docs/api-contract.md), and [release process](docs/releasing.md).
 
 ## Non-goals
 
