@@ -33,8 +33,16 @@ All notable changes will be documented here. The project intends to follow seman
 
 ### Changed
 
-- JPEG parser records internal fill-aware rewrite ranges while retaining existing public source offsets.
-- Parse-limit validation is shared by inspection and cleaning.
+- Normalized cleaning defaults and deprecated ICC alias precedence through one immutable semantic policy across JPEG, WebP, and PNG.
+- Verification now omits not-applicable format concepts and fails closed when metadata-entry limits truncate reporting.
+- Aligned metadata-entry, diagnostic, status, ICC-classification, and source-order invariants across supported formats.
+
+### Fixed
+
+- Enforced `maxMetadataEntries` within a single TIFF IFD and across normalized public metadata reports.
+- Enforced `maxDiagnostics` while container/TIFF diagnostics are emitted and in typed incomplete-cleaner errors.
+- Kept WebP structural failure state independent from capped diagnostic storage.
+- Removed unreachable foundation-era `NotImplementedError` and unused diagnostic codes.
 
 ### Foundation
 

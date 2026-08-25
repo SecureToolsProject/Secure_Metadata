@@ -1,40 +1,33 @@
 # Architecture
 
-`secure-metadata` is a side-effect-free binary library with format-specific containers and a shared metadata decoder.
+`secure-metadata` is a side-effect-free binary library with shared semantic policy and format-specific container logic.
 
 ```text
-JPEG APP1 Exif\0\0 ─┐
-PNG eXIf             ┴──→ bounded TIFF/EXIF core → normalized entries
-WebP EXIF                 → normalized container entry only
+input
+  → format detection
+  → JPEG / WebP / PNG bounded container parser
+  → optional shared TIFF decoder (JPEG EXIF, PNG eXIf)
+  → normalized metadata report
+  → normalized semantic cleaning policy
+  → format-specific conservative reconstruction
+  → one output re-inspection
+  → observational verification
 ```
 
-JPEG passes the TIFF decoder the view after its six-byte EXIF identifier. PNG passes the exact `eXIf` data view directly. In both cases TIFF offset zero is the beginning of that bounded view; integrations relocate source offsets and diagnostics only after parsing.
+Shared semantic policy does not imply a shared binary writer. JPEG copies retained marker/scan ranges. WebP copies retained chunks and repairs RIFF size plus applicable VP8X metadata bits. PNG copies complete retained chunks and original CRC bytes. Each cleaner performs one input container parse, one final output allocation, and one output inspection.
 
-## TIFF core
+## Shared TIFF core
 
-The decoder validates byte order, magic 42, complete IFD tables, field sizes, offset values, and linked traversal. A FIFO queue plus visited-offset set provides deterministic IFD0, ExifIFD, GPSIFD, and next-IFD traversal. `maxIfdEntries`, `maxIfdDepth`, `maxMetadataEntries`, and `maxStringBytes` bound work. Known values retain exact rationals; unknown tags remain structural, and MakerNote stays opaque.
+JPEG passes the view after `Exif\0\0`; PNG passes exact `eXIf` data. TIFF byte zero, tag definitions, rational representation, diagnostics, and internal paths such as `IFD0/ExifIFD/DateTimeOriginal` are shared. Outer source containers and relocated absolute offsets remain format-specific. WebP EXIF remains container-only.
+
+Traversal validates byte order, magic, complete IFD tables, field sizes, offset values, cycles, and progress. `maxIfdEntries`, `maxIfdDepth`, `maxMetadataEntries`, `maxStringBytes`, and `maxDiagnostics` bound work and reporting.
 
 ## Inspection status
 
-- `format-only`: unknown input where only format detection applies.
-- `container-inspected`: complete JPEG, WebP, or PNG traversal without TIFF decoding.
-- `container-partial`: traversal stopped on structural invalidity or a limit.
-- `metadata-partial`: complete JPEG or PNG traversal where common TIFF/EXIF decoding was attempted while broader metadata remains intentionally opaque.
-- `metadata-inspected`: reserved for future broader decoders.
+- `format-only`: only format detection is available; currently unknown input.
+- `container-inspected`: the supported JPEG, WebP, or PNG container structure was fully traversed without shared TIFF decoding.
+- `container-partial`: container traversal stopped because structure was unsafe or a structural limit was reached.
+- `metadata-partial`: JPEG or PNG container traversal completed and the supported TIFF/EXIF subset was attempted, while broader metadata semantics remain intentionally incomplete.
+- `metadata-inspected`: reserved for future exhaustive metadata decoders.
 
-## Cleaning flows
-
-JPEG and WebP use their format-specific parsers and reconstruction rules. JPEG copies retained marker/scan ranges into one output. WebP copies retained chunks, repairs RIFF size, and aligns retained VP8X metadata bits.
-
-```text
-PNG bytes
-  → bounded PNG chunk parser and metadata classification
-  → shared TIFF decoder for eXIf inspection
-  → direct keep/remove policy
-  → checked retained physical ranges
-  → one output allocation and ordered byte copies
-  → inspectMetadata(output)
-  → structured verification checks
-```
-
-The PNG cleaner parses the source once for boundaries, never routes decisions through semantic entries, and does not decode TIFF before removing a bounded `eXIf`. It copies the signature, retained complete chunks, and bytes after IEND. Retained length/type/data/CRC bytes and relative order are unchanged. IDAT, APNG, compressed text, and ICC payloads stay opaque.
+A report includes `metadataTruncated: true` when its entry budget is reached; a diagnostic is also emitted when the diagnostic budget permits. Verification fails closed rather than deriving absence from a truncated report.
