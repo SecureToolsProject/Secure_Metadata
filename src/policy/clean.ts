@@ -17,6 +17,7 @@ import type {
 import { inspectMetadata } from "../inspect.js";
 import { parseJpeg } from "../jpeg/parser.js";
 import type { JpegSegment } from "../jpeg/types.js";
+import { cleanWebP } from "../webp/clean.js";
 
 export const DEFAULT_JPEG_CLEANING_POLICY = Object.freeze({
   removeExif: true,
@@ -204,6 +205,9 @@ export function cleanMetadata(
 
   const reader = new ByteReader(bytes);
   const format = detectFormat(reader);
+  if (format === "webp") {
+    return cleanWebP(bytes, policy);
+  }
   if (format !== "jpeg") {
     throw new UnsupportedFormatError("cleanMetadata", format);
   }
