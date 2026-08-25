@@ -4,6 +4,8 @@ All notable changes will be documented here. The project intends to follow seman
 
 ## Unreleased
 
+## 0.1.0 - Release candidate
+
 ### Added
 
 - Reproducible fast-check properties for arbitrary-byte inspection, parser mutations, subview isolation, limits, cleaners, and fail-closed verification.
