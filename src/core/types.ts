@@ -91,6 +91,7 @@ export interface MetadataReport {
   readonly inspectionStatus: InspectionStatus;
   readonly entries: readonly MetadataEntry[];
   readonly diagnostics: readonly Diagnostic[];
+  readonly metadataTruncated?: true;
 }
 
 export interface CleaningPolicy {
@@ -120,6 +121,7 @@ export interface CleanResult {
   readonly removed: readonly MetadataChange[];
   readonly preserved: readonly MetadataChange[];
   readonly diagnostics: readonly Diagnostic[];
+  readonly metadataTruncated?: true;
 }
 
 export type VerificationExpectation = "absent" | "present" | "ignore";
@@ -149,4 +151,5 @@ export interface VerificationResult {
   readonly checks: readonly VerificationCheck[];
   readonly report: MetadataReport;
   readonly diagnostics: readonly Diagnostic[];
+  readonly metadataTruncated?: true;
 }

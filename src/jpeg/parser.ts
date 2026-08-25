@@ -1,5 +1,6 @@
 import { type ByteReader } from "../core/binary/index.js";
 import type { Diagnostic, DiagnosticCode } from "../core/diagnostics.js";
+import { DEFAULT_PARSE_LIMITS } from "../core/limits.js";
 import { classifyApplicationSegment, classifySegmentKind } from "./classify.js";
 import {
   isApplicationMarker,
@@ -21,8 +22,18 @@ interface MarkerPosition {
 interface ParserState {
   readonly segments: JpegSegment[];
   readonly diagnostics: Diagnostic[];
+  readonly maxDiagnostics: number;
 }
 
+function addDiagnostic(
+  state: ParserState,
+  ...items: readonly Diagnostic[]
+): void {
+  const remaining = state.maxDiagnostics - state.diagnostics.length;
+  if (remaining > 0) {
+    state.diagnostics.push(...items.slice(0, remaining));
+  }
+}
 function diagnostic(
   severity: Diagnostic["severity"],
   code: DiagnosticCode,
@@ -85,7 +96,8 @@ function addSegment(
   maxSegments: number,
 ): boolean {
   if (state.segments.length >= maxSegments) {
-    state.diagnostics.push(
+    addDiagnostic(
+      state,
       diagnostic(
         "error",
         "JPEG_SEGMENT_LIMIT_EXCEEDED",
@@ -134,7 +146,8 @@ function skipScanData(
     }
 
     if (!reader.has(cursor)) {
-      state.diagnostics.push(
+      addDiagnostic(
+        state,
         diagnostic(
           "error",
           "JPEG_TRUNCATED_SCAN",
@@ -177,7 +190,8 @@ function skipScanData(
     return cursor - 1;
   }
 
-  state.diagnostics.push(
+  addDiagnostic(
+    state,
     diagnostic(
       "error",
       "JPEG_TRUNCATED_SCAN",
@@ -191,11 +205,13 @@ function skipScanData(
 export function parseJpeg(
   reader: ByteReader,
   maxSegments: number,
+  maxDiagnostics = DEFAULT_PARSE_LIMITS.maxDiagnostics,
 ): JpegParseResult {
-  const state: ParserState = { segments: [], diagnostics: [] };
+  const state: ParserState = { segments: [], diagnostics: [], maxDiagnostics };
 
   if (!reader.matches(0, [0xff, JPEG_MARKER.SOI])) {
-    state.diagnostics.push(
+    addDiagnostic(
+      state,
       diagnostic(
         "error",
         "JPEG_INVALID_SOI",
@@ -228,13 +244,14 @@ export function parseJpeg(
   while (reader.has(offset)) {
     const markerResult = readMarker(reader, offset);
     if ("severity" in markerResult) {
-      state.diagnostics.push(markerResult);
+      addDiagnostic(state, markerResult);
       return incompleteResult(state, true);
     }
 
     const { marker, markerOffset, rangeOffset, afterMarker } = markerResult;
     if (marker === JPEG_MARKER.SOI) {
-      state.diagnostics.push(
+      addDiagnostic(
+        state,
         diagnostic(
           "error",
           "JPEG_INVALID_MARKER",
@@ -267,7 +284,8 @@ export function parseJpeg(
       offset = afterMarker;
       if (marker === JPEG_MARKER.EOI) {
         if (offset < reader.length) {
-          state.diagnostics.push(
+          addDiagnostic(
+            state,
             diagnostic(
               "warning",
               "JPEG_TRAILING_DATA",
@@ -288,7 +306,8 @@ export function parseJpeg(
     }
 
     if (!reader.has(afterMarker, 2)) {
-      state.diagnostics.push(
+      addDiagnostic(
+        state,
         diagnostic(
           "error",
           "JPEG_TRUNCATED_SEGMENT_LENGTH",
@@ -301,7 +320,8 @@ export function parseJpeg(
 
     const declaredLength = reader.u16BE(afterMarker);
     if (declaredLength < 2) {
-      state.diagnostics.push(
+      addDiagnostic(
+        state,
         diagnostic(
           "error",
           "JPEG_INVALID_SEGMENT_LENGTH",
@@ -313,7 +333,8 @@ export function parseJpeg(
     }
 
     if (!reader.has(afterMarker, declaredLength)) {
-      state.diagnostics.push(
+      addDiagnostic(
+        state,
         diagnostic(
           "error",
           "JPEG_TRUNCATED_SEGMENT",
@@ -362,7 +383,8 @@ export function parseJpeg(
     }
   }
 
-  state.diagnostics.push(
+  addDiagnostic(
+    state,
     diagnostic(
       "error",
       "JPEG_MISSING_EOI",

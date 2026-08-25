@@ -1,9 +1,7 @@
 export type DiagnosticSeverity = "warning" | "error";
 
 export type DiagnosticCode =
-  | "NOT_IMPLEMENTED"
-  | "INPUT_LIMIT_EXCEEDED"
-  | "MALFORMED_INPUT"
+  | "METADATA_ENTRY_LIMIT_EXCEEDED"
   | "JPEG_INVALID_SOI"
   | "JPEG_INVALID_MARKER"
   | "JPEG_TRUNCATED_MARKER"

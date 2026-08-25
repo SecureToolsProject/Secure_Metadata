@@ -1,5 +1,6 @@
 import { ByteReader } from "../core/binary/index.js";
 import type { Diagnostic, DiagnosticCode } from "../core/diagnostics.js";
+import { DEFAULT_PARSE_LIMITS } from "../core/limits.js";
 import { decodeTiffValue } from "./decode-value.js";
 import { TIFF_FIELD_TYPE, tiffFieldTypeSize } from "./field-types.js";
 import { TIFF_TAG, tiffTagDefinition } from "./tags.js";
@@ -15,6 +16,7 @@ export interface TiffParseLimits {
   readonly maxIfdDepth: number;
   readonly maxMetadataEntries: number;
   readonly maxStringBytes: number;
+  readonly maxDiagnostics?: number;
 }
 
 interface PendingIfd {
@@ -30,6 +32,7 @@ interface TiffState {
   complete: boolean;
   processedEntries: number;
   traversalLimitReported: boolean;
+  readonly maxDiagnostics: number;
 }
 
 function checkedMultiply(left: number, right: number): number | undefined {
@@ -45,11 +48,13 @@ function emit(
   offset?: number,
   severity: Diagnostic["severity"] = "error",
 ): void {
-  state.diagnostics.push(
-    offset === undefined
-      ? { severity, code, message }
-      : { severity, code, message, offset },
-  );
+  if (state.diagnostics.length < state.maxDiagnostics) {
+    state.diagnostics.push(
+      offset === undefined
+        ? { severity, code, message }
+        : { severity, code, message, offset },
+    );
+  }
   if (severity === "error") {
     state.complete = false;
   }
@@ -58,13 +63,18 @@ function emit(
 function initialFailure(
   code: DiagnosticCode,
   message: string,
+  maxDiagnostics: number,
   offset?: number,
 ): TiffParseResult {
   const diagnostic: Diagnostic =
     offset === undefined
       ? { severity: "error", code, message }
       : { severity: "error", code, message, offset };
-  return { complete: false, entries: [], diagnostics: [diagnostic] };
+  return {
+    complete: false,
+    entries: [],
+    diagnostics: maxDiagnostics === 0 ? [] : [diagnostic],
+  };
 }
 
 function byteOrder(bytes: ByteReader): TiffByteOrder | undefined {
@@ -119,11 +129,14 @@ export function parseTiff(
   bytes: Uint8Array,
   limits: TiffParseLimits,
 ): TiffParseResult {
+  const maxDiagnostics =
+    limits.maxDiagnostics ?? DEFAULT_PARSE_LIMITS.maxDiagnostics;
   const raw = new ByteReader(bytes);
   if (!raw.has(0, 8)) {
     return initialFailure(
       "TIFF_TRUNCATED_HEADER",
       "TIFF header requires at least eight bytes.",
+      maxDiagnostics,
       0,
     );
   }
@@ -133,6 +146,7 @@ export function parseTiff(
     return initialFailure(
       "TIFF_INVALID_BYTE_ORDER",
       "TIFF byte order must be II or MM.",
+      maxDiagnostics,
       0,
     );
   }
@@ -143,14 +157,17 @@ export function parseTiff(
       byteOrder: order,
       complete: false,
       entries: [],
-      diagnostics: [
-        {
-          severity: "error",
-          code: "TIFF_INVALID_MAGIC",
-          message: "TIFF magic value is not 42.",
-          offset: 2,
-        },
-      ],
+      diagnostics:
+        maxDiagnostics === 0
+          ? []
+          : [
+              {
+                severity: "error",
+                code: "TIFF_INVALID_MAGIC",
+                message: "TIFF magic value is not 42.",
+                offset: 2,
+              },
+            ],
     };
   }
 
@@ -168,14 +185,17 @@ export function parseTiff(
       byteOrder: order,
       complete: false,
       entries: [],
-      diagnostics: [
-        {
-          severity: "error",
-          code: "TIFF_INVALID_FIRST_IFD_OFFSET",
-          message: "TIFF first IFD offset is outside the TIFF payload.",
-          offset: 4,
-        },
-      ],
+      diagnostics:
+        maxDiagnostics === 0
+          ? []
+          : [
+              {
+                severity: "error",
+                code: "TIFF_INVALID_FIRST_IFD_OFFSET",
+                message: "TIFF first IFD offset is outside the TIFF payload.",
+                offset: 4,
+              },
+            ],
     };
   }
 
@@ -185,6 +205,7 @@ export function parseTiff(
     complete: true,
     processedEntries: 0,
     traversalLimitReported: false,
+    maxDiagnostics,
   };
   const pending: PendingIfd[] = [
     { offset: firstIfdOffset, kind: "ifd0", path: "IFD0", depth: 1 },
@@ -256,6 +277,19 @@ export function parseTiff(
     const entriesOffset = current.offset + 2;
 
     for (let index = 0; index < entryCount; index += 1) {
+      if (state.processedEntries >= limits.maxMetadataEntries) {
+        if (!state.traversalLimitReported) {
+          emit(
+            state,
+            "TIFF_TRAVERSAL_LIMIT_EXCEEDED",
+            `TIFF traversal exceeds maxMetadataEntries ${String(limits.maxMetadataEntries)}.`,
+            entriesOffset + index * 12,
+          );
+          state.traversalLimitReported = true;
+        }
+        break;
+      }
+      state.processedEntries += 1;
       const entryOffset = entriesOffset + index * 12;
       const tag = reader.u16(entryOffset);
       const type = reader.u16(entryOffset + 2);
@@ -365,7 +399,9 @@ export function parseTiff(
         ? { diagnostics: [] as readonly Diagnostic[] }
         : decodeTiffValue(reader, type, count, valueOffset, definition);
       for (const item of decoded.diagnostics) {
-        state.diagnostics.push(item);
+        if (state.diagnostics.length < state.maxDiagnostics) {
+          state.diagnostics.push(item);
+        }
         if (item.severity === "error") {
           state.complete = false;
         }
@@ -432,5 +468,8 @@ export function parseTiff(
     complete: state.complete,
     entries: state.entries,
     diagnostics: state.diagnostics,
+    ...(state.traversalLimitReported
+      ? { entryLimitExceeded: true as const }
+      : {}),
   };
 }

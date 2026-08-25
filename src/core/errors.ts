@@ -1,7 +1,6 @@
 import type { Diagnostic } from "./diagnostics.js";
 
 export type SecureMetadataErrorCode =
-  | "NOT_IMPLEMENTED"
   | "INVALID_OFFSET"
   | "INVALID_LENGTH"
   | "OUT_OF_BOUNDS"
@@ -22,17 +21,6 @@ export class SecureMetadataError extends Error {
     options?: ErrorOptions,
   ) {
     super(message, options);
-  }
-}
-
-export class NotImplementedError extends SecureMetadataError {
-  override readonly name: string = "NotImplementedError";
-
-  constructor(operation: string) {
-    super(
-      `${operation} is not implemented in the secure-metadata 0.0.0 foundation.`,
-      "NOT_IMPLEMENTED",
-    );
   }
 }
 

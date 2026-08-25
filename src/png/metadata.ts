@@ -1,5 +1,6 @@
 import { type ByteReader } from "../core/binary/index.js";
 import type { Diagnostic } from "../core/diagnostics.js";
+import { DEFAULT_PARSE_LIMITS } from "../core/limits.js";
 import type { MetadataEntry } from "../core/types.js";
 import {
   metadataEntriesFromTiff,
@@ -12,6 +13,7 @@ export interface PngMetadataInspection {
   readonly entries: readonly MetadataEntry[];
   readonly diagnostics: readonly Diagnostic[];
   readonly attemptedExifDecode: boolean;
+  readonly entryLimitExceeded: boolean;
 }
 
 function source(chunk: PngChunk): MetadataEntry["source"] {
@@ -28,26 +30,47 @@ export function inspectPngMetadata(
   reader: ByteReader,
   result: PngParseResult,
   tiffLimits: TiffParseLimits,
+  maxMetadataEntries: number,
 ): PngMetadataInspection {
   const entries: MetadataEntry[] = [];
   const diagnostics: Diagnostic[] = [];
   let attemptedExifDecode = false;
+  let entryLimitExceeded = false;
+
+  const add = (entry: MetadataEntry): boolean => {
+    if (entries.length >= maxMetadataEntries) {
+      entryLimitExceeded = true;
+      return false;
+    }
+    entries.push(entry);
+    return true;
+  };
 
   for (const chunk of result.chunks) {
     switch (chunk.metadataKind) {
       case "exif": {
-        entries.push({
-          id: `png-exif-${String(chunk.offset)}`,
-          namespace: "exif",
-          name: "PNG EXIF container",
-          category: "unknown",
-          privacy: "potentially-sensitive",
-          source: source(chunk),
-        });
+        if (
+          !add({
+            id: `png-exif-${String(chunk.offset)}`,
+            namespace: "exif",
+            name: "PNG EXIF container",
+            category: "unknown",
+            privacy: "potentially-sensitive",
+            source: source(chunk),
+          })
+        ) {
+          break;
+        }
         attemptedExifDecode = true;
         const tiff = parseTiff(
           reader.slice(chunk.dataOffset, chunk.dataLength),
-          tiffLimits,
+          {
+            ...tiffLimits,
+            maxMetadataEntries: maxMetadataEntries - entries.length,
+            maxDiagnostics:
+              (tiffLimits.maxDiagnostics ??
+                DEFAULT_PARSE_LIMITS.maxDiagnostics) - diagnostics.length,
+          },
         );
         entries.push(
           ...metadataEntriesFromTiff(tiff, {
@@ -59,10 +82,11 @@ export function inspectPngMetadata(
         diagnostics.push(
           ...relocateTiffDiagnostics(tiff.diagnostics, chunk.dataOffset),
         );
+        entryLimitExceeded ||= tiff.entryLimitExceeded === true;
         break;
       }
       case "xmp":
-        entries.push({
+        add({
           id: `png-xmp-${String(chunk.offset)}`,
           namespace: "xmp",
           name: "PNG XMP iTXt container",
@@ -72,7 +96,7 @@ export function inspectPngMetadata(
         });
         break;
       case "text":
-        entries.push({
+        add({
           id: `png-text-${String(chunk.offset)}`,
           namespace: "png-text",
           name:
@@ -85,7 +109,7 @@ export function inspectPngMetadata(
         });
         break;
       case "timestamp":
-        entries.push({
+        add({
           id: `png-time-${String(chunk.offset)}`,
           namespace: "png-time",
           name: "PNG modification time",
@@ -95,7 +119,7 @@ export function inspectPngMetadata(
         });
         break;
       case "icc":
-        entries.push({
+        add({
           id: `png-icc-${String(chunk.offset)}`,
           namespace: "icc",
           name: "PNG ICC profile container",
@@ -107,5 +131,10 @@ export function inspectPngMetadata(
     }
   }
 
-  return { entries, diagnostics, attemptedExifDecode };
+  return {
+    entries,
+    diagnostics,
+    attemptedExifDecode,
+    entryLimitExceeded,
+  };
 }

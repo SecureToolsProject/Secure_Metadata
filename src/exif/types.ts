@@ -29,4 +29,5 @@ export interface TiffParseResult {
   readonly complete: boolean;
   readonly entries: readonly TiffDecodedEntry[];
   readonly diagnostics: readonly Diagnostic[];
+  readonly entryLimitExceeded?: true;
 }
