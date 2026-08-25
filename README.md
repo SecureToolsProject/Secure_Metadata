@@ -14,13 +14,16 @@ Current implementation:
 - iterative IFD0, ExifIFD, GPSIFD, and next-IFD traversal with cycle and depth protection;
 - common TIFF, EXIF, and GPS field decoding with exact rational values;
 - deterministic whole-segment JPEG Privacy Clean with byte-preserving reconstruction;
-- structured JPEG verification for observable container presence or absence.
+- structured JPEG verification for observable container presence or absence;
+- bounded WebP RIFF/chunk inspection with EXIF, XMP, and ICCP container detection;
+- deterministic WebP Privacy Clean with RIFF-size and VP8X metadata-flag repair;
+- structured WebP verification for EXIF, XMP, and ICC presence.
 
-Not implemented: MakerNote or thumbnail decoding, XMP/IPTC/ICC payload parsing, PNG/WebP container parsing or cleaning, and PNG/WebP verification.
+Not implemented: MakerNote or thumbnail decoding, XMP/IPTC/ICC payload parsing, WebP EXIF field decoding, and PNG container parsing, cleaning, or verification.
 
 ## Format status
 
-JPEG reports can be `container-inspected`, `container-partial`, or `metadata-partial`. `metadata-partial` means supported TIFF/EXIF fields were attempted while the wider metadata space remains intentionally incomplete. PNG and WebP remain `format-only`. See [format support](docs/format-support.md).
+JPEG reports can be `container-inspected`, `container-partial`, or `metadata-partial`. `metadata-partial` means supported TIFF/EXIF fields were attempted while the wider metadata space remains intentionally incomplete. WebP reports are `container-inspected` or `container-partial` and expose metadata containers only. PNG remains `format-only`. See [format support](docs/format-support.md).
 
 ## Installation
 
@@ -40,13 +43,13 @@ import {
 
 GPS rational components remain exact numerator/denominator pairs; decimal coordinates are not derived. Unknown TIFF tags and MakerNote are represented structurally without dumping or recursively parsing their payloads.
 
-`cleanMetadata` supports JPEG. Its default policy removes complete EXIF, standard/extended XMP, Photoshop/IPTC, and COM segments while preserving ICC, JFIF/JFXX, Adobe APP14, unknown APP segments, structural data, scan bytes, and trailing bytes. It returns a separate output, container-level change evidence, and an inspection report of that output.
+`cleanMetadata` supports JPEG and WebP. JPEG Privacy Clean removes EXIF, standard/extended XMP, Photoshop/IPTC, and COM segments while preserving ICC, JFIF/JFXX, Adobe APP14, unknown APP segments, structural data, scan bytes, and trailing bytes. WebP Privacy Clean removes EXIF and XMP chunks while preserving ICCP, VP8/VP8L, VP8X, ALPH, ANIM/ANMF, unknown chunks, and trailing bytes; it repairs RIFF size and VP8X metadata flags.
 
-`verifyMetadata` supports JPEG expectations of `absent`, `present`, or `ignore` for EXIF, XMP, IPTC, comments, and ICC. The default checks the four privacy-clean removal targets. A single-file verification can observe presence or absence; it cannot prove that bytes came from an original file.
+`verifyMetadata` supports `absent`, `present`, or `ignore` expectations. JPEG defaults check EXIF, XMP, IPTC, and comments; WebP defaults check EXIF and XMP. Single-file verification observes presence or absence and cannot prove that bytes came from an original file.
 
 ## Security philosophy
 
-Every byte is untrusted. All offsets are interpreted within bounded views, traversal is iterative and limited, repeated IFD offsets are rejected, and malformed entries recover without unchecked access. Unknown JPEG APP structures remain unknown and are preserved by cleaning. See the [security model](docs/security-model.md), [architecture](docs/architecture.md), and [cleaning policy](docs/cleaning-policy.md).
+Every byte is untrusted. All offsets are interpreted within bounded views, traversal is iterative and limited, repeated IFD offsets are rejected, and malformed entries recover without unchecked access. Unknown JPEG APP segments and WebP chunks remain unknown and are preserved by cleaning. See the [security model](docs/security-model.md), [architecture](docs/architecture.md), and [cleaning policy](docs/cleaning-policy.md).
 
 ## Non-goals
 

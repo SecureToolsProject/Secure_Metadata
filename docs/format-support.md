@@ -1,37 +1,33 @@
 # Format Support
 
-| Capability                  | JPEG                   | PNG            | WebP           |
-| --------------------------- | ---------------------- | -------------- | -------------- |
-| Signature detection         | Supported              | Supported      | Supported      |
-| Bounded container traversal | Supported              | Not yet        | Not yet        |
-| EXIF container detection    | Supported              | Not yet        | Not yet        |
-| TIFF header and IFD0        | Supported through JPEG | Not integrated | Not integrated |
-| ExifIFD and GPSIFD          | Supported through JPEG | Not integrated | Not integrated |
-| Common EXIF/GPS fields      | Supported subset       | Not integrated | Not integrated |
-| MakerNote decoding          | Not supported          | Not supported  | Not supported  |
-| XMP payload decoding        | Not yet                | Not yet        | Not yet        |
-| IPTC/ICC payload decoding   | Not yet                | Not yet        | Not yet        |
-| Whole-container cleaning    | Supported              | Not yet        | Not yet        |
-| Structured verification     | Supported              | Not yet        | Not yet        |
+| Capability                    | JPEG             | WebP           | PNG            |
+| ----------------------------- | ---------------- | -------------- | -------------- |
+| Signature detection           | Supported        | Supported      | Supported      |
+| Bounded container traversal   | Supported        | Supported      | Not yet        |
+| EXIF container detection      | Supported        | Supported      | Not yet        |
+| XMP/ICC container detection   | Supported        | Supported      | Not yet        |
+| TIFF/EXIF field decoding      | Supported subset | Container only | Not integrated |
+| MakerNote decoding            | Not supported    | Not supported  | Not supported  |
+| XMP/IPTC/ICC payload decoding | Not supported    | Not supported  | Not supported  |
+| Whole-container cleaning      | Supported        | Supported      | Not yet        |
+| Structured verification       | Supported        | Supported      | Not yet        |
 
 ## TIFF/EXIF subset
 
-Both `II` and `MM` byte orders are supported. Traversal covers IFD0, ExifIFDPointer, GPSInfoIFDPointer, and next-IFD links with table, entry, depth, offset, and cycle checks.
+JPEG integrates the shared little- and big-endian TIFF decoder. Traversal covers IFD0, ExifIFDPointer, GPSInfoIFDPointer, and next-IFD links with table, entry, depth, offset, and cycle checks.
 
 Decoded IFD0 tags: ImageDescription, Make, Model, Orientation, Software, DateTime, Artist, and Copyright.
 
-Decoded ExifIFD tags: ExposureTime, FNumber, PhotographicSensitivity, ExifVersion, DateTimeOriginal, DateTimeDigitized, FocalLength, PixelXDimension, PixelYDimension, and FocalLengthIn35mmFilm. MakerNote is named and retained as opaque structure.
+Decoded ExifIFD tags: ExposureTime, FNumber, PhotographicSensitivity, ExifVersion, DateTimeOriginal, DateTimeDigitized, FocalLength, PixelXDimension, PixelYDimension, and FocalLengthIn35mmFilm. MakerNote remains opaque.
 
-Decoded GPS tags: GPSVersionID, GPSLatitudeRef, GPSLatitude, GPSLongitudeRef, GPSLongitude, GPSAltitudeRef, GPSAltitude, GPSTimeStamp, and GPSDateStamp. Coordinates remain exact raw rational components plus reference fields; decimal coordinates are not derived.
+Decoded GPS tags include version, latitude/longitude components and references, altitude, time, and date. Coordinates remain exact rational components; decimal coordinates are not derived.
 
-Unknown tags remain structurally represented without speculative meaning or large binary values.
+WebP EXIF is intentionally container detection only. Its bounded chunk payload is not passed to TIFF decoding because Sprint 5 does not guess a prefix or offset base.
 
-## Remaining container support
+## Container cleaning and verification
 
-JPEG marker and scan traversal remains supported. XMP, ICC, and Photoshop/IPTC signatures are container-detected only. PNG requires its complete signature and WebP requires `RIFF....WEBP`; their chunks and metadata are not parsed yet.
+JPEG Privacy Clean removes EXIF, standard/extended XMP, Photoshop/IPTC, and comments while preserving ICC, application/rendering structures, scan data, unknown APP segments, and trailing bytes.
 
-## JPEG cleaning and verification
+WebP Privacy Clean removes EXIF and XMP chunks while preserving ICCP, VP8/VP8L, VP8X, ALPH, ANIM/ANMF, unknown chunks, original padding on retained chunks, and trailing bytes. It repairs RIFF size and retained VP8X metadata flags.
 
-JPEG Privacy Clean removes recognized EXIF, standard/extended XMP, Photoshop/IPTC, and comment segments. ICC, JFIF/JFXX, Adobe APP14, unknown APP segments, structural markers, all scan data, and trailing bytes are retained. Structurally incomplete JPEGs are rejected; malformed TIFF inside a bounded removable EXIF segment does not block cleaning.
-
-Verification reports observable container presence or absence for EXIF, XMP, IPTC, comments, and ICC. It does not decode XMP/IPTC/ICC payloads or prove preservation from an original input.
+Verification reports observable supported metadata-container presence or absence. It does not decode XMP/IPTC/ICC, prove byte provenance, or prove complete removal of personal information. PNG remains format detection only.

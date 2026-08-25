@@ -6,6 +6,10 @@ All notable changes will be documented here. The project intends to follow seman
 
 ### Added
 
+- Bounded WebP RIFF/chunk parsing with declared-size, padding, VP8X, and chunk-count validation.
+- WebP EXIF, XMP, and ICCP container inspection with image/alpha/animation distinction.
+- Deterministic WebP Privacy Clean with RIFF-size and VP8X metadata-flag repair.
+- WebP metadata verification, ICC/unknown preservation, and canonical malformed/padding coverage.
 - Deterministic JPEG Privacy Clean for whole EXIF, XMP, Photoshop/IPTC, and COM segments.
 - Checked single-allocation JPEG reconstruction preserving ICC, unknown APP, structural, scan, and trailing bytes.
 - Structured JPEG presence/absence verification and typed unsupported/incomplete-input errors.

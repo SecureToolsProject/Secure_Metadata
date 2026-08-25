@@ -4,12 +4,11 @@
 
 ```text
 JPEG APP1 Exif\0\0 ─┐
-PNG eXIf (future)    ├──→ bounded TIFF/EXIF core
-WebP EXIF (future)  ─┘          ↓
-                         normalized entries
+PNG eXIf (future)    ┴──→ bounded TIFF/EXIF core → normalized entries
+WebP EXIF                → normalized container entry only
 ```
 
-The TIFF decoder receives only the TIFF byte view after the six-byte EXIF identifier. It has no JPEG marker or absolute file-offset knowledge. Every TIFF offset is relative to byte zero of that view. Integration relocates decoded source offsets and diagnostics only after parsing.
+JPEG integration passes the TIFF decoder only the byte view after the six-byte EXIF identifier. The decoder has no JPEG marker or absolute file-offset knowledge. Every TIFF offset is relative to byte zero of that view. Integration relocates decoded source offsets and diagnostics only after parsing.
 
 ## TIFF core
 
@@ -27,9 +26,9 @@ Unknown tags retain namespace, tag number, TIFF type, count, entry offset, and s
 
 ## Inspection status
 
-- `format-only`: signature detection only; currently PNG, WebP, and unknown input.
-- `container-inspected`: JPEG reached EOI and no EXIF decode was attempted.
-- `container-partial`: JPEG traversal stopped on corruption, truncation, or a limit.
+- `format-only`: signature detection only; currently PNG and unknown input.
+- `container-inspected`: JPEG or WebP container traversal completed without deep metadata decoding.
+- `container-partial`: JPEG or WebP traversal stopped on corruption, truncation, structural invalidity, or a limit.
 - `metadata-partial`: JPEG container traversal completed and common TIFF/EXIF decoding was attempted; XMP/IPTC/ICC and unknown fields remain incomplete.
 - `metadata-inspected`: reserved for future broader decoders.
 
@@ -46,3 +45,19 @@ input JPEG
 ```
 
 The parser remains the structural source of truth. Internal rewrite ranges include marker fill bytes associated with a removed marker while public source offsets retain their existing meaning. Cleaning does not invoke TIFF decoding on the source: a structurally bounded EXIF APP1 can be removed even if its TIFF body is malformed. The post-write inspection and verifier use the normal inspection layer.
+
+## WebP clean and verify flow
+
+```text
+WebP bytes
+  → bounded RIFF/WebP parser and FourCC classification
+  → direct EXIF/XMP/ICC policy
+  → retained chunks
+  → minimal VP8X metadata-bit patch
+  → RIFF size patch
+  → one output allocation and ordered chunk copies
+  → inspectMetadata(output)
+  → structured verification checks
+```
+
+Chunk payloads remain bounded views and image, alpha, and animation bytes are opaque. The cleaner does not synthesize VP8X; a valid retained VP8X has only its ICC, EXIF, and XMP bits aligned with actual retained chunks. Bytes outside the declared RIFF container are copied as uninterpreted trailing data.

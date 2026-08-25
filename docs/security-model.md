@@ -10,7 +10,7 @@ Binary metadata parsing processes attacker-controlled structures, sizes, offsets
 4. Core functions make no network requests and access no filesystem or DOM APIs.
 5. Image pixel payloads are never decoded.
 6. Unknown metadata is not deleted or assigned speculative meaning.
-7. JPEG cleaning preserves ICC, unknown APP, and rendering/container segments by default.
+7. JPEG and WebP cleaning preserve ICC, unknown structures, and image/rendering structures by default.
 8. Cleaner output is re-inspected before it is returned.
 9. Metadata absence never proves an image contains no private information.
 10. Steganography detection, malware scanning, visual redaction, and pixel privacy analysis are outside scope.
@@ -48,3 +48,11 @@ Cleaning proceeds only after bounded traversal reaches EOI. Truncated lengths, i
 Removal uses checked, non-overlapping parser ranges. Output length is a safe integer no larger than input length, one output buffer is allocated, and retained ranges are copied in original order. Entropy-coded bytes, restart markers, retained marker fill, structural segments, and bytes after EOI are neither decoded nor regenerated. Exact `Uint8Array` views are honored and caller input is never mutated.
 
 The default policy preserves every ICC and unknown APP segment. Verification proves only the requested observable container state supported by inspection. It does not prove provenance, byte preservation without an original, absence of unknown metadata, or absence of personal information in pixels or unsupported structures.
+
+## WebP parsing and cleaning properties
+
+The parser validates the 12-byte RIFF/WebP header, checked declared RIFF boundary, complete eight-byte chunk headers, payload lengths, odd-byte padding, VP8X length/uniqueness, and `maxChunks`. Every chunk loop either advances by its validated physical length or terminates. Trailing bytes outside the declared RIFF boundary are warned about, not parsed.
+
+VP8, VP8L, VP8X, ALPH, ANIM, ANMF, ICCP, and unknown chunk payloads remain opaque. Privacy Clean removes whole EXIF and XMP chunks, including their padding. ICCP and unknown chunks remain by default. Reconstruction allocates one output buffer, copies retained physical chunks in order, patches only VP8X ICC/EXIF/XMP flag bits, repairs the little-endian RIFF size, and preserves trailing bytes outside that size.
+
+Unsafe RIFF/chunk boundaries, missing padding, invalid or duplicate VP8X, and chunk-limit failures produce `IncompleteWebPError` before output. Malformed EXIF/XMP payloads do not block safe whole-chunk removal. WebP verification observes supported chunk presence only and makes no claim about provenance, unknown metadata, pixels, or complete personal-information removal.
