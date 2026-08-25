@@ -26,3 +26,9 @@ Malformed inner EXIF/TIFF or textual payloads do not block removal of their boun
 Verification reports only supported `present` or `absent` observations. Not-applicable format concepts produce no check. Truncated metadata reporting is recorded independently of diagnostic output, produces no checks, and fails verification. The library does not establish authenticity, provenance, absence of proprietary metadata, visible-person privacy, steganography safety, malware safety, or complete metadata absence.
 
 Core production code has zero runtime dependencies and no network, analytics, telemetry, filesystem, DOM, Node `Buffer`, or required platform-global behavior.
+
+## Malformed-input assurance
+
+Malformed input is part of the expected threat model. A small deterministic corpus covers representative generic, JPEG, WebP, PNG, and TIFF structural corruption families, including truncation, corrupt lengths and offsets, cycles, and configured work limits. Parser loops must advance or terminate, and unsafe outer container boundaries cause typed fail-closed cleaning and verification errors before output is produced.
+
+The corpus is regression coverage, not proof of parser correctness. No decompression is implemented, so decompression bombs are outside the current attack surface and `maxDecompressedBytes` remains reserved. Reproducible property testing and dedicated fuzzing are planned future layers; random fuzzing is not part of normal CI. See [testing and fuzz readiness](testing.md).
