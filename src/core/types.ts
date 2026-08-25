@@ -13,6 +13,7 @@ export type MetadataNamespace =
   | "iptc"
   | "jpeg-comment"
   | "png-text"
+  | "png-time"
   | "icc"
   | "container"
   | "unknown";
@@ -97,6 +98,8 @@ export interface CleaningPolicy {
   readonly removeXmp?: boolean;
   readonly removeIptc?: boolean;
   readonly removeComments?: boolean;
+  readonly removeTextMetadata?: boolean;
+  readonly removeTimestamps?: boolean;
   readonly preserveIcc?: boolean;
   /** @deprecated Use preserveIcc. */
   readonly preserveColorProfiles?: boolean;
@@ -112,7 +115,7 @@ export interface MetadataChange {
 
 export interface CleanResult {
   readonly output: Uint8Array;
-  readonly format: "jpeg" | "webp";
+  readonly format: "jpeg" | "webp" | "png";
   readonly report: MetadataReport;
   readonly removed: readonly MetadataChange[];
   readonly preserved: readonly MetadataChange[];
@@ -126,13 +129,16 @@ export interface VerificationPolicy {
   readonly xmp?: VerificationExpectation;
   readonly iptc?: VerificationExpectation;
   readonly comments?: VerificationExpectation;
+  readonly textMetadata?: VerificationExpectation;
+  readonly timestamps?: VerificationExpectation;
   readonly icc?: VerificationExpectation;
   readonly requireNoPrivacyRelevantMetadata?: boolean;
   readonly limits?: Partial<ParseLimits>;
 }
 
 export interface VerificationCheck {
-  readonly namespace: "exif" | "xmp" | "iptc" | "jpeg-comment" | "icc";
+  readonly namespace:
+    "exif" | "xmp" | "iptc" | "jpeg-comment" | "png-text" | "png-time" | "icc";
   readonly expected: Exclude<VerificationExpectation, "ignore">;
   readonly actual: "absent" | "present";
   readonly passed: boolean;

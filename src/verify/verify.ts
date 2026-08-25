@@ -1,5 +1,6 @@
 import {
   IncompleteJpegError,
+  IncompletePngError,
   IncompleteWebPError,
   UnsupportedFormatError,
 } from "../core/errors.js";
@@ -26,6 +27,14 @@ export const DEFAULT_WEBP_VERIFICATION_POLICY = Object.freeze({
   icc: "ignore",
 } satisfies Record<string, VerificationExpectation>);
 
+export const DEFAULT_PNG_VERIFICATION_POLICY = Object.freeze({
+  exif: "absent",
+  xmp: "absent",
+  textMetadata: "absent",
+  timestamps: "absent",
+  icc: "ignore",
+} satisfies Record<string, VerificationExpectation>);
+
 export function verifyMetadata(
   input: BinaryInput,
   expectation?: VerificationPolicy,
@@ -44,6 +53,10 @@ export function verifyMetadata(
     if (report.inspectionStatus === "container-partial") {
       throw new IncompleteWebPError("verifyMetadata", report.diagnostics);
     }
+  } else if (report.format === "png") {
+    if (report.inspectionStatus === "container-partial") {
+      throw new IncompletePngError("verifyMetadata", report.diagnostics);
+    }
   } else {
     throw new UnsupportedFormatError("verifyMetadata", report.format);
   }
@@ -52,22 +65,32 @@ export function verifyMetadata(
     expectation?.requireNoPrivacyRelevantMetadata === false
       ? "ignore"
       : "absent";
-  const expected: Partial<
+  let expected: Partial<
     Record<VerificationCheck["namespace"], VerificationExpectation>
-  > =
-    report.format === "jpeg"
-      ? {
-          exif: expectation?.exif ?? privacyDefault,
-          xmp: expectation?.xmp ?? privacyDefault,
-          iptc: expectation?.iptc ?? privacyDefault,
-          "jpeg-comment": expectation?.comments ?? privacyDefault,
-          icc: expectation?.icc ?? "ignore",
-        }
-      : {
-          exif: expectation?.exif ?? privacyDefault,
-          xmp: expectation?.xmp ?? privacyDefault,
-          icc: expectation?.icc ?? "ignore",
-        };
+  >;
+  if (report.format === "jpeg") {
+    expected = {
+      exif: expectation?.exif ?? privacyDefault,
+      xmp: expectation?.xmp ?? privacyDefault,
+      iptc: expectation?.iptc ?? privacyDefault,
+      "jpeg-comment": expectation?.comments ?? privacyDefault,
+      icc: expectation?.icc ?? "ignore",
+    };
+  } else if (report.format === "webp") {
+    expected = {
+      exif: expectation?.exif ?? privacyDefault,
+      xmp: expectation?.xmp ?? privacyDefault,
+      icc: expectation?.icc ?? "ignore",
+    };
+  } else {
+    expected = {
+      exif: expectation?.exif ?? privacyDefault,
+      xmp: expectation?.xmp ?? privacyDefault,
+      "png-text": expectation?.textMetadata ?? privacyDefault,
+      "png-time": expectation?.timestamps ?? privacyDefault,
+      icc: expectation?.icc ?? "ignore",
+    };
+  }
 
   const checks: VerificationCheck[] = [];
   for (const [namespace, wanted] of Object.entries(expected) as Array<

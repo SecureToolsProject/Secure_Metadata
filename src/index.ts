@@ -1,8 +1,10 @@
 export { inspectMetadata } from "./inspect.js";
 export { cleanMetadata, DEFAULT_JPEG_CLEANING_POLICY } from "./policy/clean.js";
+export { DEFAULT_PNG_CLEANING_POLICY } from "./png/clean.js";
 export { DEFAULT_WEBP_CLEANING_POLICY } from "./webp/clean.js";
 export {
   DEFAULT_JPEG_VERIFICATION_POLICY,
+  DEFAULT_PNG_VERIFICATION_POLICY,
   DEFAULT_WEBP_VERIFICATION_POLICY,
   verifyMetadata,
 } from "./verify/verify.js";
@@ -10,6 +12,7 @@ export {
 export {
   BinaryBoundsError,
   IncompleteJpegError,
+  IncompletePngError,
   IncompleteWebPError,
   InputLimitExceededError,
   InvalidParseLimitError,
