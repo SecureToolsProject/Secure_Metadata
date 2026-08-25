@@ -112,7 +112,7 @@ export interface MetadataChange {
 
 export interface CleanResult {
   readonly output: Uint8Array;
-  readonly format: "jpeg";
+  readonly format: "jpeg" | "webp";
   readonly report: MetadataReport;
   readonly removed: readonly MetadataChange[];
   readonly preserved: readonly MetadataChange[];

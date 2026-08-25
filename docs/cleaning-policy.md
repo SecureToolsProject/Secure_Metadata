@@ -1,12 +1,13 @@
 # Cleaning Policy
 
-JPEG Privacy Clean removes complete recognized metadata containers. It never rewrites TIFF/EXIF fields, XMP XML, IPTC blocks, comments, or ICC payloads.
+Privacy Clean removes complete recognized metadata containers and never decodes or re-encodes image payloads.
+
+## JPEG
 
 | JPEG structure                         | Default action |
 | -------------------------------------- | -------------- |
 | EXIF APP1                              | Remove         |
-| Standard XMP APP1                      | Remove         |
-| Extended XMP APP1                      | Remove         |
+| Standard/extended XMP APP1             | Remove         |
 | Photoshop/IPTC APP13                   | Remove         |
 | COM                                    | Remove         |
 | ICC APP2                               | Preserve       |
@@ -16,8 +17,24 @@ JPEG Privacy Clean removes complete recognized metadata containers. It never rew
 | Structural markers and image/scan data | Preserve       |
 | Data after EOI                         | Preserve       |
 
-Every recognized instance is handled independently and retained content keeps its original order and bytes. Unknown APP removal is intentionally unavailable in Sprint 4. Callers may override the four removal booleans and ICC preservation; `preserveColorProfiles` remains a deprecated alias for `preserveIcc`.
+JPEG v0.1 removes the entire EXIF APP1, including malformed TIFF bodies whose JPEG segment boundary is valid. Selective GPS/tag rewriting and TIFF reserialization are deferred.
 
-v0.1 removes the entire EXIF APP1, including malformed TIFF bodies whose JPEG segment boundary is valid. Selective GPS or tag rewriting and TIFF reserialization are deferred.
+## WebP
 
-`cleanMetadata` returns a new `Uint8Array`, container-level removed/preserved records, diagnostics, and an inspection report of the produced JPEG. A structurally incomplete JPEG is rejected before allocation. PNG, WebP, and unknown inputs return a typed unsupported-format error.
+| WebP chunk or data                | Default action                     |
+| --------------------------------- | ---------------------------------- |
+| EXIF                              | Remove                             |
+| XMP                               | Remove                             |
+| ICCP                              | Preserve                           |
+| VP8 / VP8L                        | Preserve                           |
+| VP8X                              | Preserve; align ICC/EXIF/XMP flags |
+| ALPH                              | Preserve                           |
+| ANIM / ANMF                       | Preserve                           |
+| Unknown chunks                    | Preserve                           |
+| Data after declared RIFF boundary | Preserve                           |
+
+WebP cleaning removes every targeted physical chunk including odd-byte padding, repairs the RIFF size, and patches only the three VP8X metadata feature bits. Alpha, animation, reserved, and other VP8X bits remain unchanged. No VP8X is synthesized. Structurally bounded malformed metadata payloads remain removable.
+
+The shared policy fields `removeExif`, `removeXmp`, and `preserveIcc` apply to both formats. JPEG-only `removeIptc` and `removeComments` have no WebP effect. `preserveColorProfiles` remains a deprecated alias for `preserveIcc`. Unknown removal is intentionally unavailable.
+
+`cleanMetadata` returns a new `Uint8Array`, container-level change evidence, diagnostics, and an inspection report of its output. Structurally incomplete input is rejected before output allocation. PNG and unknown formats return a typed unsupported-format error.

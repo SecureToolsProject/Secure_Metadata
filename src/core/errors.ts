@@ -9,6 +9,7 @@ export type SecureMetadataErrorCode =
   | "INPUT_LIMIT_EXCEEDED"
   | "UNSUPPORTED_FORMAT"
   | "INCOMPLETE_JPEG"
+  | "INCOMPLETE_WEBP"
   | "CLEAN_OUTPUT_SIZE_INVALID";
 
 export class SecureMetadataError extends Error {
@@ -86,7 +87,7 @@ export class UnsupportedFormatError extends SecureMetadataError {
 
   constructor(
     readonly operation: "cleanMetadata" | "verifyMetadata",
-    readonly format: "png" | "webp" | "unknown",
+    readonly format: "png" | "unknown",
   ) {
     super(
       `${operation} does not support ${format} input.`,
@@ -105,6 +106,20 @@ export class IncompleteJpegError extends SecureMetadataError {
     super(
       `${operation} requires a structurally complete JPEG ending at EOI.`,
       "INCOMPLETE_JPEG",
+    );
+  }
+}
+
+export class IncompleteWebPError extends SecureMetadataError {
+  override readonly name: string = "IncompleteWebPError";
+
+  constructor(
+    readonly operation: "cleanMetadata" | "verifyMetadata",
+    readonly diagnostics: readonly Diagnostic[],
+  ) {
+    super(
+      `${operation} requires a structurally complete WebP RIFF container.`,
+      "INCOMPLETE_WEBP",
     );
   }
 }

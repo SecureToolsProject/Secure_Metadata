@@ -1,4 +1,8 @@
-import { IncompleteJpegError, UnsupportedFormatError } from "../core/errors.js";
+import {
+  IncompleteJpegError,
+  IncompleteWebPError,
+  UnsupportedFormatError,
+} from "../core/errors.js";
 import type {
   BinaryInput,
   VerificationCheck,
@@ -16,6 +20,12 @@ export const DEFAULT_JPEG_VERIFICATION_POLICY = Object.freeze({
   icc: "ignore",
 } satisfies Record<string, VerificationExpectation>);
 
+export const DEFAULT_WEBP_VERIFICATION_POLICY = Object.freeze({
+  exif: "absent",
+  xmp: "absent",
+  icc: "ignore",
+} satisfies Record<string, VerificationExpectation>);
+
 export function verifyMetadata(
   input: BinaryInput,
   expectation?: VerificationPolicy,
@@ -26,27 +36,38 @@ export function verifyMetadata(
       ? undefined
       : { limits: expectation.limits },
   );
-  if (report.format !== "jpeg") {
+  if (report.format === "jpeg") {
+    if (report.inspectionStatus === "container-partial") {
+      throw new IncompleteJpegError("verifyMetadata", report.diagnostics);
+    }
+  } else if (report.format === "webp") {
+    if (report.inspectionStatus === "container-partial") {
+      throw new IncompleteWebPError("verifyMetadata", report.diagnostics);
+    }
+  } else {
     throw new UnsupportedFormatError("verifyMetadata", report.format);
-  }
-  if (report.inspectionStatus === "container-partial") {
-    throw new IncompleteJpegError("verifyMetadata", report.diagnostics);
   }
 
   const privacyDefault =
     expectation?.requireNoPrivacyRelevantMetadata === false
       ? "ignore"
       : "absent";
-  const expected = {
-    exif: expectation?.exif ?? privacyDefault,
-    xmp: expectation?.xmp ?? privacyDefault,
-    iptc: expectation?.iptc ?? privacyDefault,
-    "jpeg-comment": expectation?.comments ?? privacyDefault,
-    icc: expectation?.icc ?? "ignore",
-  } satisfies Record<
-    "exif" | "xmp" | "iptc" | "jpeg-comment" | "icc",
-    VerificationExpectation
-  >;
+  const expected: Partial<
+    Record<VerificationCheck["namespace"], VerificationExpectation>
+  > =
+    report.format === "jpeg"
+      ? {
+          exif: expectation?.exif ?? privacyDefault,
+          xmp: expectation?.xmp ?? privacyDefault,
+          iptc: expectation?.iptc ?? privacyDefault,
+          "jpeg-comment": expectation?.comments ?? privacyDefault,
+          icc: expectation?.icc ?? "ignore",
+        }
+      : {
+          exif: expectation?.exif ?? privacyDefault,
+          xmp: expectation?.xmp ?? privacyDefault,
+          icc: expectation?.icc ?? "ignore",
+        };
 
   const checks: VerificationCheck[] = [];
   for (const [namespace, wanted] of Object.entries(expected) as Array<
