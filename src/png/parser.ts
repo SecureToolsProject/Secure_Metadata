@@ -1,5 +1,6 @@
 import { type ByteReader } from "../core/binary/index.js";
 import type { Diagnostic, DiagnosticCode } from "../core/diagnostics.js";
+import { DEFAULT_PARSE_LIMITS } from "../core/limits.js";
 import { pngCrc32 } from "./crc32.js";
 import type {
   PngChunk,
@@ -11,6 +12,16 @@ import type {
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 const XMP_KEYWORD = "XML:com.adobe.xmp";
 
+function addDiagnostic(
+  diagnostics: Diagnostic[],
+  maximum: number,
+  ...items: readonly Diagnostic[]
+): void {
+  const remaining = maximum - diagnostics.length;
+  if (remaining > 0) {
+    diagnostics.push(...items.slice(0, remaining));
+  }
+}
 function diagnostic(
   severity: Diagnostic["severity"],
   code: DiagnosticCode,
@@ -94,6 +105,7 @@ function readKeyword(
   dataLength: number,
   maxStringBytes: number,
   diagnostics: Diagnostic[],
+  maxDiagnostics: number,
   fourCC: string,
 ): { readonly value: string; readonly afterKeyword: number } | undefined {
   const keywordLimit = Math.min(maxStringBytes, 79);
@@ -103,7 +115,9 @@ function readKeyword(
       continue;
     }
     if (index === 0) {
-      diagnostics.push(
+      addDiagnostic(
+        diagnostics,
+        maxDiagnostics,
         diagnostic(
           "warning",
           "PNG_INVALID_TEXT",
@@ -123,7 +137,9 @@ function readKeyword(
     };
   }
 
-  diagnostics.push(
+  addDiagnostic(
+    diagnostics,
+    maxDiagnostics,
     dataLength > keywordLimit && keywordLimit === maxStringBytes
       ? diagnostic(
           "warning",
@@ -145,24 +161,30 @@ export function parsePng(
   reader: ByteReader,
   maxChunks: number,
   maxStringBytes: number,
+  maxDiagnostics = DEFAULT_PARSE_LIMITS.maxDiagnostics,
 ): PngParseResult {
   const diagnostics: Diagnostic[] = [];
   const chunks: PngChunk[] = [];
   if (!reader.matches(0, PNG_SIGNATURE)) {
-    return failure([
+    addDiagnostic(
+      diagnostics,
+      maxDiagnostics,
       diagnostic(
         "error",
         "PNG_INVALID_SIGNATURE",
         "PNG input does not contain the complete eight-byte signature.",
         0,
       ),
-    ]);
+    );
+    return failure(diagnostics);
   }
 
   let offset = 8;
   while (offset < reader.length) {
     if (chunks.length >= maxChunks) {
-      diagnostics.push(
+      addDiagnostic(
+        diagnostics,
+        maxDiagnostics,
         diagnostic(
           "error",
           "PNG_CHUNK_LIMIT_EXCEEDED",
@@ -174,7 +196,9 @@ export function parsePng(
     }
     const remaining = reader.length - offset;
     if (remaining < 4) {
-      diagnostics.push(
+      addDiagnostic(
+        diagnostics,
+        maxDiagnostics,
         diagnostic(
           "error",
           "PNG_TRUNCATED_CHUNK_LENGTH",
@@ -185,7 +209,9 @@ export function parsePng(
       return failure(diagnostics, chunks, offset);
     }
     if (remaining < 8) {
-      diagnostics.push(
+      addDiagnostic(
+        diagnostics,
+        maxDiagnostics,
         diagnostic(
           "error",
           "PNG_TRUNCATED_CHUNK_TYPE",
@@ -200,7 +226,9 @@ export function parsePng(
     const typeOffset = offset + 4;
     for (let index = 0; index < 4; index += 1) {
       if (!isAsciiLetter(reader.u8(typeOffset + index))) {
-        diagnostics.push(
+        addDiagnostic(
+          diagnostics,
+          maxDiagnostics,
           diagnostic(
             "error",
             "PNG_INVALID_CHUNK_TYPE",
@@ -216,7 +244,9 @@ export function parsePng(
     const dataOffset = offset + 8;
     const available = reader.length - dataOffset;
     if (dataLength > available) {
-      diagnostics.push(
+      addDiagnostic(
+        diagnostics,
+        maxDiagnostics,
         diagnostic(
           "error",
           "PNG_TRUNCATED_CHUNK_DATA",
@@ -227,7 +257,9 @@ export function parsePng(
       return failure(diagnostics, chunks, offset);
     }
     if (available - dataLength < 4) {
-      diagnostics.push(
+      addDiagnostic(
+        diagnostics,
+        maxDiagnostics,
         diagnostic(
           "error",
           "PNG_MISSING_CRC",
@@ -241,7 +273,9 @@ export function parsePng(
     const crcOffset = dataOffset + dataLength;
     const totalLength = 12 + dataLength;
     if (!Number.isSafeInteger(totalLength) || totalLength > remaining) {
-      diagnostics.push(
+      addDiagnostic(
+        diagnostics,
+        maxDiagnostics,
         diagnostic(
           "error",
           "PNG_TRUNCATED_CHUNK_DATA",
@@ -263,6 +297,7 @@ export function parsePng(
         dataLength,
         maxStringBytes,
         diagnostics,
+        maxDiagnostics,
         type,
       );
       keyword = parsedKeyword?.value;
@@ -272,7 +307,9 @@ export function parsePng(
           parsedKeyword !== undefined &&
           parsedKeyword.afterKeyword >= dataOffset + dataLength
         ) {
-          diagnostics.push(
+          addDiagnostic(
+            diagnostics,
+            maxDiagnostics,
             diagnostic(
               "warning",
               "PNG_INVALID_TEXT",
@@ -283,7 +320,9 @@ export function parsePng(
         }
       } else if (type === "iTXt" && parsedKeyword !== undefined) {
         if (dataOffset + dataLength - parsedKeyword.afterKeyword < 2) {
-          diagnostics.push(
+          addDiagnostic(
+            diagnostics,
+            maxDiagnostics,
             diagnostic(
               "warning",
               "PNG_INVALID_TEXT",
@@ -295,7 +334,9 @@ export function parsePng(
           const flag = reader.u8(parsedKeyword.afterKeyword);
           textCompressed = flag === 1;
           if (flag > 1) {
-            diagnostics.push(
+            addDiagnostic(
+              diagnostics,
+              maxDiagnostics,
               diagnostic(
                 "warning",
                 "PNG_INVALID_TEXT",
@@ -312,7 +353,9 @@ export function parsePng(
     const actualCrc = pngCrc32(reader.slice(typeOffset, 4 + dataLength));
     const crcValid = expectedCrc === actualCrc;
     if (!crcValid) {
-      diagnostics.push(
+      addDiagnostic(
+        diagnostics,
+        maxDiagnostics,
         diagnostic(
           "warning",
           "PNG_INVALID_CRC",
@@ -342,7 +385,9 @@ export function parsePng(
 
     if (type === "IEND") {
       if (dataLength !== 0) {
-        diagnostics.push(
+        addDiagnostic(
+          diagnostics,
+          maxDiagnostics,
           diagnostic(
             "error",
             "PNG_INVALID_IEND",
@@ -353,7 +398,9 @@ export function parsePng(
         return failure(diagnostics, chunks, offset);
       }
       if (offset < reader.length) {
-        diagnostics.push(
+        addDiagnostic(
+          diagnostics,
+          maxDiagnostics,
           diagnostic(
             "warning",
             "PNG_TRAILING_DATA",
@@ -372,7 +419,9 @@ export function parsePng(
     }
   }
 
-  diagnostics.push(
+  addDiagnostic(
+    diagnostics,
+    maxDiagnostics,
     diagnostic(
       "error",
       "PNG_MISSING_IEND",

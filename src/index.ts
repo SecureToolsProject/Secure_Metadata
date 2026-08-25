@@ -1,5 +1,6 @@
 export { inspectMetadata } from "./inspect.js";
 export { cleanMetadata, DEFAULT_JPEG_CLEANING_POLICY } from "./policy/clean.js";
+export { DEFAULT_CLEANING_POLICY } from "./policy/normalize.js";
 export { DEFAULT_PNG_CLEANING_POLICY } from "./png/clean.js";
 export { DEFAULT_WEBP_CLEANING_POLICY } from "./webp/clean.js";
 export {
@@ -16,7 +17,6 @@ export {
   IncompleteWebPError,
   InputLimitExceededError,
   InvalidParseLimitError,
-  NotImplementedError,
   SecureMetadataError,
   UnsupportedFormatError,
 } from "./core/errors.js";

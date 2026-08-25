@@ -38,9 +38,9 @@ import {
 
 GPS rational components remain exact numerator/denominator pairs; decimal coordinates are not derived. Unknown TIFF tags and MakerNote are represented structurally without dumping or recursively parsing their payloads.
 
-`cleanMetadata` supports JPEG, WebP, and PNG. JPEG removes EXIF, XMP, Photoshop/IPTC, and comments. WebP removes EXIF and XMP while repairing RIFF size and applicable VP8X flags. PNG removes `eXIf`, XMP `iTXt`, ordinary `tEXt`/`zTXt`/`iTXt`, and `tIME`; it preserves `iCCP`, rendering/color chunks, image and APNG chunks, unknown chunks, critical chunks, and trailing bytes. All formats preserve ICC by default.
+`DEFAULT_CLEANING_POLICY` is the authoritative semantic default: remove recognized EXIF, XMP, IPTC, comments, ordinary text, and standalone timestamps; preserve ICC, unknown, rendering, and image data. Each format maps only applicable concepts to physical containers. The deprecated `preserveColorProfiles` alias is used only when explicit `preserveIcc` is absent.
 
-`verifyMetadata` supports `absent`, `present`, or `ignore` expectations. PNG defaults check EXIF, XMP, ordinary text, and timestamps, while ICC is ignored unless explicitly requested. Single-file verification observes supported container presence or absence and cannot prove provenance or pixel privacy.
+`verifyMetadata` supports `absent`, `present`, or `ignore` expectations. Concepts not implemented for a format produce no check rather than implying an exhaustive search. Verification fails closed if metadata reporting reaches its configured entry limit. Single-file verification observes supported container presence or absence and cannot prove provenance or pixel privacy.
 
 ## Security philosophy
 

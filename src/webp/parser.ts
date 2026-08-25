@@ -1,5 +1,6 @@
 import { type ByteReader } from "../core/binary/index.js";
 import type { Diagnostic, DiagnosticCode } from "../core/diagnostics.js";
+import { DEFAULT_PARSE_LIMITS } from "../core/limits.js";
 import {
   classifyWebPChunk,
   WEBP_VP8X_FLAG,
@@ -41,23 +42,33 @@ function fourCC(reader: ByteReader, offset: number): string {
 export function parseWebP(
   reader: ByteReader,
   maxChunks: number,
+  maxDiagnostics = DEFAULT_PARSE_LIMITS.maxDiagnostics,
 ): WebPParseResult {
   const diagnostics: Diagnostic[] = [];
   const chunks: WebPChunk[] = [];
+  let hasStructuralError = false;
+  const addDiagnostic = (...items: readonly Diagnostic[]): void => {
+    hasStructuralError ||= items.some(({ severity }) => severity === "error");
+    const remaining = maxDiagnostics - diagnostics.length;
+    if (remaining > 0) {
+      diagnostics.push(...items.slice(0, remaining));
+    }
+  };
 
   if (
     !reader.has(0, 12) ||
     !reader.matches(0, RIFF) ||
     !reader.matches(8, WEBP)
   ) {
-    return failure([
+    addDiagnostic(
       diagnostic(
         "error",
         "WEBP_INVALID_RIFF_HEADER",
         "WebP input requires a 12-byte RIFF....WEBP header.",
         0,
       ),
-    ]);
+    );
+    return failure(diagnostics);
   }
 
   const declaredRiffSize = reader.u32LE(4);
@@ -67,35 +78,29 @@ export function parseWebP(
     !Number.isSafeInteger(containerLength) ||
     containerLength < 12
   ) {
-    return failure(
-      [
-        diagnostic(
-          "error",
-          "WEBP_INVALID_RIFF_SIZE",
-          "WebP RIFF size does not include the WEBP form type.",
-          4,
-        ),
-      ],
-      chunks,
-      containerLength,
+    addDiagnostic(
+      diagnostic(
+        "error",
+        "WEBP_INVALID_RIFF_SIZE",
+        "WebP RIFF size does not include the WEBP form type.",
+        4,
+      ),
     );
+    return failure(diagnostics, chunks, containerLength);
   }
   if (containerLength > reader.length) {
-    return failure(
-      [
-        diagnostic(
-          "error",
-          "WEBP_TRUNCATED_RIFF",
-          "WebP RIFF size extends beyond the supplied input.",
-          4,
-        ),
-      ],
-      chunks,
-      containerLength,
+    addDiagnostic(
+      diagnostic(
+        "error",
+        "WEBP_TRUNCATED_RIFF",
+        "WebP RIFF size extends beyond the supplied input.",
+        4,
+      ),
     );
+    return failure(diagnostics, chunks, containerLength);
   }
   if (containerLength < reader.length) {
-    diagnostics.push(
+    addDiagnostic(
       diagnostic(
         "warning",
         "WEBP_TRAILING_DATA",
@@ -109,7 +114,7 @@ export function parseWebP(
   let vp8xCount = 0;
   while (offset < containerLength) {
     if (chunks.length >= maxChunks) {
-      diagnostics.push(
+      addDiagnostic(
         diagnostic(
           "error",
           "WEBP_CHUNK_LIMIT_EXCEEDED",
@@ -120,7 +125,7 @@ export function parseWebP(
       return failure(diagnostics, chunks, containerLength);
     }
     if (containerLength - offset < 8) {
-      diagnostics.push(
+      addDiagnostic(
         diagnostic(
           "error",
           "WEBP_TRUNCATED_CHUNK_HEADER",
@@ -136,7 +141,7 @@ export function parseWebP(
     const payloadOffset = offset + 8;
     const payloadEnd = payloadOffset + payloadLength;
     if (!Number.isSafeInteger(payloadEnd) || payloadEnd > containerLength) {
-      diagnostics.push(
+      addDiagnostic(
         diagnostic(
           "error",
           "WEBP_TRUNCATED_CHUNK",
@@ -149,7 +154,7 @@ export function parseWebP(
 
     const padding = payloadLength % 2;
     if (padding === 1 && payloadEnd === containerLength) {
-      diagnostics.push(
+      addDiagnostic(
         diagnostic(
           "error",
           "WEBP_INVALID_PADDING",
@@ -164,7 +169,7 @@ export function parseWebP(
       !Number.isSafeInteger(totalLength) ||
       totalLength > containerLength - offset
     ) {
-      diagnostics.push(
+      addDiagnostic(
         diagnostic(
           "error",
           "WEBP_TRUNCATED_CHUNK",
@@ -180,7 +185,7 @@ export function parseWebP(
     if (type === "VP8X") {
       vp8xCount += 1;
       if (vp8xCount > 1) {
-        diagnostics.push(
+        addDiagnostic(
           diagnostic(
             "error",
             "WEBP_DUPLICATE_VP8X",
@@ -190,7 +195,7 @@ export function parseWebP(
         );
       }
       if (payloadLength !== 10) {
-        diagnostics.push(
+        addDiagnostic(
           diagnostic(
             "error",
             "WEBP_INVALID_VP8X",
@@ -215,9 +220,6 @@ export function parseWebP(
     offset += totalLength;
   }
 
-  const hasStructuralError = diagnostics.some(
-    ({ severity }) => severity === "error",
-  );
   const vp8x = chunks.find(({ fourCC: type }) => type === "VP8X");
   if (!hasStructuralError && vp8x?.vp8xFlags !== undefined) {
     const observedFlags =
@@ -231,7 +233,7 @@ export function parseWebP(
         ? WEBP_VP8X_FLAG.xmp
         : 0);
     if ((vp8x.vp8xFlags & WEBP_VP8X_METADATA_MASK) !== observedFlags) {
-      diagnostics.push(
+      addDiagnostic(
         diagnostic(
           "warning",
           "WEBP_INCONSISTENT_FEATURE_FLAGS",

@@ -61,6 +61,14 @@ export function verifyMetadata(
     throw new UnsupportedFormatError("verifyMetadata", report.format);
   }
 
+  if (report.metadataTruncated === true) {
+    return {
+      valid: false,
+      checks: [],
+      report,
+      diagnostics: report.diagnostics,
+    };
+  }
   const privacyDefault =
     expectation?.requireNoPrivacyRelevantMetadata === false
       ? "ignore"

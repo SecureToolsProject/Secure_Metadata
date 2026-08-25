@@ -122,4 +122,14 @@ describe("WebP RIFF parser", () => {
       expect.objectContaining({ code: "WEBP_CHUNK_LIMIT_EXCEEDED" }),
     );
   });
+
+  it("keeps structural failure state when its diagnostic is capped", () => {
+    const input = webp([chunk("VP8X")], Uint8Array.of(1));
+    const result = parseWebP(new ByteReader(input), 100, 1);
+
+    expect(result.complete).toBe(false);
+    expect(result.diagnostics).toEqual([
+      expect.objectContaining({ code: "WEBP_TRAILING_DATA" }),
+    ]);
+  });
 });

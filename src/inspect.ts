@@ -1,5 +1,6 @@
 import { ByteReader, toUint8Array } from "./core/binary/index.js";
 import { detectFormat } from "./core/detect-format.js";
+import type { Diagnostic } from "./core/diagnostics.js";
 import { InputLimitExceededError } from "./core/errors.js";
 import { DEFAULT_PARSE_LIMITS, resolveParseLimit } from "./core/limits.js";
 import type { ParseLimits } from "./core/limits.js";
@@ -33,7 +34,29 @@ function resolveTiffLimits(
     maxStringBytes: enabled
       ? resolveParseLimit("maxStringBytes", limits?.maxStringBytes)
       : DEFAULT_PARSE_LIMITS.maxStringBytes,
+    maxDiagnostics: enabled
+      ? resolveParseLimit("maxDiagnostics", limits?.maxDiagnostics)
+      : DEFAULT_PARSE_LIMITS.maxDiagnostics,
   };
+}
+
+function boundedDiagnostics(
+  diagnostics: readonly Diagnostic[],
+  entryLimitExceeded: boolean,
+  maxDiagnostics: number,
+): readonly Diagnostic[] {
+  const withEntryLimit = entryLimitExceeded
+    ? [
+        {
+          severity: "warning" as const,
+          code: "METADATA_ENTRY_LIMIT_EXCEEDED" as const,
+          message:
+            "Metadata report exceeds the configured maxMetadataEntries limit.",
+        },
+        ...diagnostics,
+      ]
+    : diagnostics;
+  return withEntryLimit.slice(0, maxDiagnostics);
 }
 
 export function inspectMetadata(
@@ -53,9 +76,18 @@ export function inspectMetadata(
   const reader = new ByteReader(bytes);
   const format = detectFormat(reader);
   if (format === "jpeg") {
+    const maxMetadataEntries = resolveParseLimit(
+      "maxMetadataEntries",
+      options?.limits?.maxMetadataEntries,
+    );
+    const maxDiagnostics = resolveParseLimit(
+      "maxDiagnostics",
+      options?.limits?.maxDiagnostics,
+    );
     const jpeg = parseJpeg(
       reader,
       resolveParseLimit("maxSegments", options?.limits?.maxSegments),
+      maxDiagnostics,
     );
     const hasExif = jpeg.segments.some(
       ({ metadataKind }) => metadataKind === "exif",
@@ -64,6 +96,7 @@ export function inspectMetadata(
       reader,
       jpeg,
       resolveTiffLimits(options?.limits, hasExif),
+      maxMetadataEntries,
     );
     return {
       format,
@@ -74,31 +107,64 @@ export function inspectMetadata(
           ? "metadata-partial"
           : "container-inspected",
       entries: metadata.entries,
-      diagnostics: [...jpeg.diagnostics, ...metadata.diagnostics],
+      ...(metadata.entryLimitExceeded
+        ? { metadataTruncated: true as const }
+        : {}),
+      diagnostics: boundedDiagnostics(
+        [...jpeg.diagnostics, ...metadata.diagnostics],
+        metadata.entryLimitExceeded,
+        maxDiagnostics,
+      ),
     };
   }
 
   if (format === "webp") {
+    const maxMetadataEntries = resolveParseLimit(
+      "maxMetadataEntries",
+      options?.limits?.maxMetadataEntries,
+    );
+    const maxDiagnostics = resolveParseLimit(
+      "maxDiagnostics",
+      options?.limits?.maxDiagnostics,
+    );
     const webp = parseWebP(
       reader,
       resolveParseLimit("maxChunks", options?.limits?.maxChunks),
+      maxDiagnostics,
     );
+    const metadata = inspectWebPMetadata(webp, maxMetadataEntries);
     return {
       format,
       size: bytes.byteLength,
       inspectionStatus: webp.complete
         ? "container-inspected"
         : "container-partial",
-      entries: inspectWebPMetadata(webp),
-      diagnostics: webp.diagnostics,
+      entries: metadata.entries,
+      ...(metadata.entryLimitExceeded
+        ? { metadataTruncated: true as const }
+        : {}),
+      diagnostics: boundedDiagnostics(
+        webp.diagnostics,
+        metadata.entryLimitExceeded,
+        maxDiagnostics,
+      ),
     };
   }
 
   if (format === "png") {
+    const maxMetadataEntries = resolveParseLimit(
+      "maxMetadataEntries",
+      options?.limits?.maxMetadataEntries,
+    );
+    const maxDiagnostics = resolveParseLimit(
+      "maxDiagnostics",
+      options?.limits?.maxDiagnostics,
+    );
     const png = parsePng(
       reader,
       resolveParseLimit("maxChunks", options?.limits?.maxChunks),
       resolveParseLimit("maxStringBytes", options?.limits?.maxStringBytes),
+      maxDiagnostics,
     );
     const hasExif = png.chunks.some(
       ({ metadataKind }) => metadataKind === "exif",
@@ -107,6 +173,7 @@ export function inspectMetadata(
       reader,
       png,
       resolveTiffLimits(options?.limits, hasExif),
+      maxMetadataEntries,
     );
     return {
       format,
@@ -117,7 +184,14 @@ export function inspectMetadata(
           ? "metadata-partial"
           : "container-inspected",
       entries: metadata.entries,
-      diagnostics: [...png.diagnostics, ...metadata.diagnostics],
+      ...(metadata.entryLimitExceeded
+        ? { metadataTruncated: true as const }
+        : {}),
+      diagnostics: boundedDiagnostics(
+        [...png.diagnostics, ...metadata.diagnostics],
+        metadata.entryLimitExceeded,
+        maxDiagnostics,
+      ),
     };
   }
 

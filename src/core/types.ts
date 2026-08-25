@@ -91,6 +91,7 @@ export interface MetadataReport {
   readonly inspectionStatus: InspectionStatus;
   readonly entries: readonly MetadataEntry[];
   readonly diagnostics: readonly Diagnostic[];
+  readonly metadataTruncated?: true;
 }
 
 export interface CleaningPolicy {

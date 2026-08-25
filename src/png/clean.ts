@@ -8,36 +8,20 @@ import type {
   MetadataNamespace,
 } from "../core/types.js";
 import { inspectMetadata } from "../inspect.js";
+import {
+  DEFAULT_CLEANING_POLICY,
+  normalizeCleaningPolicy,
+  type NormalizedCleaningPolicy,
+} from "../policy/normalize.js";
 import { parsePng } from "./parser.js";
 import type { PngChunk } from "./types.js";
 
-export const DEFAULT_PNG_CLEANING_POLICY = Object.freeze({
-  removeExif: true,
-  removeXmp: true,
-  removeTextMetadata: true,
-  removeTimestamps: true,
-  preserveIcc: true,
-});
+export const DEFAULT_PNG_CLEANING_POLICY = DEFAULT_CLEANING_POLICY;
 
-interface EffectivePolicy {
-  readonly removeExif: boolean;
-  readonly removeXmp: boolean;
-  readonly removeTextMetadata: boolean;
-  readonly removeTimestamps: boolean;
-  readonly preserveIcc: boolean;
-}
-
-function effectivePolicy(policy: CleaningPolicy | undefined): EffectivePolicy {
-  return {
-    removeExif: policy?.removeExif ?? true,
-    removeXmp: policy?.removeXmp ?? true,
-    removeTextMetadata: policy?.removeTextMetadata ?? true,
-    removeTimestamps: policy?.removeTimestamps ?? true,
-    preserveIcc: policy?.preserveIcc ?? policy?.preserveColorProfiles ?? true,
-  };
-}
-
-function shouldRemove(chunk: PngChunk, policy: EffectivePolicy): boolean {
+function shouldRemove(
+  chunk: PngChunk,
+  policy: NormalizedCleaningPolicy,
+): boolean {
   switch (chunk.metadataKind) {
     case "exif":
       return policy.removeExif;
@@ -109,12 +93,19 @@ export function cleanPng(
     new ByteReader(bytes),
     resolveParseLimit("maxChunks", policy?.limits?.maxChunks),
     resolveParseLimit("maxStringBytes", policy?.limits?.maxStringBytes),
+    resolveParseLimit("maxDiagnostics", policy?.limits?.maxDiagnostics),
   );
   if (!parsed.complete) {
-    throw new IncompletePngError("cleanMetadata", parsed.diagnostics);
+    throw new IncompletePngError(
+      "cleanMetadata",
+      parsed.diagnostics.slice(
+        0,
+        resolveParseLimit("maxDiagnostics", policy?.limits?.maxDiagnostics),
+      ),
+    );
   }
 
-  const resolved = effectivePolicy(policy);
+  const resolved = normalizeCleaningPolicy(policy);
   const removals = parsed.chunks.filter((chunk) =>
     shouldRemove(chunk, resolved),
   );

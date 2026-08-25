@@ -1,5 +1,6 @@
 import { type ByteReader } from "../core/binary/index.js";
 import type { Diagnostic } from "../core/diagnostics.js";
+import { DEFAULT_PARSE_LIMITS } from "../core/limits.js";
 import type { MetadataEntry } from "../core/types.js";
 import {
   metadataEntriesFromTiff,
@@ -13,6 +14,7 @@ export interface JpegMetadataInspection {
   readonly entries: readonly MetadataEntry[];
   readonly diagnostics: readonly Diagnostic[];
   readonly attemptedExifDecode: boolean;
+  readonly entryLimitExceeded: boolean;
 }
 
 function source(segment: JpegSegment): MetadataEntry["source"] {
@@ -29,14 +31,25 @@ export function inspectJpegMetadata(
   reader: ByteReader,
   result: JpegParseResult,
   tiffLimits: TiffParseLimits,
+  maxMetadataEntries: number,
 ): JpegMetadataInspection {
   const entries: MetadataEntry[] = [];
   const diagnostics: Diagnostic[] = [];
   let attemptedExifDecode = false;
+  let entryLimitExceeded = false;
+
+  const add = (entry: MetadataEntry): boolean => {
+    if (entries.length >= maxMetadataEntries) {
+      entryLimitExceeded = true;
+      return false;
+    }
+    entries.push(entry);
+    return true;
+  };
 
   for (const segment of result.segments) {
     if (segment.marker === JPEG_MARKER.COM) {
-      entries.push({
+      add({
         id: `jpeg-comment-${String(segment.offset)}`,
         namespace: "jpeg-comment",
         name: "JPEG comment",
@@ -49,15 +62,15 @@ export function inspectJpegMetadata(
 
     switch (segment.metadataKind) {
       case "exif": {
-        entries.push({
-          id: `jpeg-exif-${String(segment.offset)}`,
-          namespace: "exif",
-          name: "EXIF container",
-          category: "unknown",
-          privacy: "potentially-sensitive",
-          source: source(segment),
-        });
         if (
+          !add({
+            id: `jpeg-exif-${String(segment.offset)}`,
+            namespace: "exif",
+            name: "EXIF container",
+            category: "unknown",
+            privacy: "potentially-sensitive",
+            source: source(segment),
+          }) ||
           segment.payloadOffset === undefined ||
           segment.payloadLength === undefined
         ) {
@@ -66,10 +79,13 @@ export function inspectJpegMetadata(
         attemptedExifDecode = true;
         const tiffOffset = segment.payloadOffset + 6;
         const tiffLength = segment.payloadLength - 6;
-        const tiff = parseTiff(
-          reader.slice(tiffOffset, tiffLength),
-          tiffLimits,
-        );
+        const tiff = parseTiff(reader.slice(tiffOffset, tiffLength), {
+          ...tiffLimits,
+          maxMetadataEntries: maxMetadataEntries - entries.length,
+          maxDiagnostics:
+            (tiffLimits.maxDiagnostics ?? DEFAULT_PARSE_LIMITS.maxDiagnostics) -
+            diagnostics.length,
+        });
         entries.push(
           ...metadataEntriesFromTiff(tiff, {
             format: "jpeg",
@@ -80,10 +96,11 @@ export function inspectJpegMetadata(
         diagnostics.push(
           ...relocateTiffDiagnostics(tiff.diagnostics, tiffOffset),
         );
+        entryLimitExceeded ||= tiff.entryLimitExceeded === true;
         break;
       }
       case "xmp":
-        entries.push({
+        add({
           id: `jpeg-xmp-${String(segment.offset)}`,
           namespace: "xmp",
           name:
@@ -96,7 +113,7 @@ export function inspectJpegMetadata(
         });
         break;
       case "icc":
-        entries.push({
+        add({
           id: `jpeg-icc-${String(segment.offset)}`,
           namespace: "icc",
           name: "ICC profile container",
@@ -106,7 +123,7 @@ export function inspectJpegMetadata(
         });
         break;
       case "iptc":
-        entries.push({
+        add({
           id: `jpeg-iptc-${String(segment.offset)}`,
           namespace: "iptc",
           name: "Photoshop/IPTC container",
@@ -115,10 +132,13 @@ export function inspectJpegMetadata(
           source: source(segment),
         });
         break;
-      default:
-        break;
     }
   }
 
-  return { entries, diagnostics, attemptedExifDecode };
+  return {
+    entries,
+    diagnostics,
+    attemptedExifDecode,
+    entryLimitExceeded,
+  };
 }
