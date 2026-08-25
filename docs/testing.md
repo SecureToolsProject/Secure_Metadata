@@ -2,50 +2,101 @@
 
 The test suite uses deterministic TypeScript fixture builders for JPEG markers,
 WebP RIFF chunks, PNG chunks and CRCs, and TIFF IFD structures. Fixtures stay
-small, readable, and cheap; binary files are used only when they would be
-clearer than the builder expression.
+small and reviewable; binary files are used only when clearer than builder code.
 
 ## Test layers
 
 ```text
-bounded binary primitives
+bounded binary unit tests
   → format fixtures and parser algorithms
   → deterministic malformed corpus
-  → cross-format public API invariants
-  → future reproducible property tests
-  → future fuzz targets
+  → cross-format invariants
+  → reproducible property tests
+  → finite fuzz harness
 ```
 
-The malformed corpus covers generic byte patterns plus representative JPEG,
-WebP, PNG, and shared TIFF truncation, corrupt length, invalid offset, cycle,
-and configured-limit families. Corpus assertions focus on stable contracts:
-format/status, relevant diagnostic codes, deterministic results, caller-input
-immutability, typed fail-closed cleaning and verification, and safe removal of
-bounded malformed metadata. They intentionally avoid full-report snapshots and
-timing thresholds.
+The 67-case malformed corpus covers named generic, JPEG, WebP, PNG, and shared
+TIFF corruption families. It remains the permanent regression foundation.
+Property tests supplement it with generated variations, while the fuzz harness
+repeatedly explores the public API. Generated iterations are not counted as
+individual Vitest tests.
 
-Security-limit tests use tiny inputs with small custom values for input,
-segment, chunk, IFD entry/depth, metadata entry, string, and diagnostic limits.
-`maxDecompressedBytes` remains unused because the library performs no
-decompression.
+## Property tests
 
-## Future property and fuzz targets
+Property tests use the single dev-only `fast-check` dependency for bounded
+arbitraries, deterministic seed/path replay, and automatic shrinking. They run
+as part of `npm test` and can be invoked alone:
 
-Likely targets are:
+```text
+npm test -- tests/property
+```
 
-- `inspectMetadata(bytes)` through the public API;
-- bounded JPEG, WebP, and PNG parser entry points in test/fuzz builds;
-- the bounded TIFF parser as a test-only internal target;
-- `cleanMetadata(bytes, policy)` through the public API.
+Defaults are fixed and finite:
 
-Strong future properties include containment of native bounds exceptions,
-deterministic inspection and cleaning, re-inspectable clean output, Privacy
-Clean idempotency, input immutability, removal-only output sizing, preservation
-of unknown structures, and default ICC preservation. WebP is permitted to patch
-the RIFF size and applicable VP8X metadata flags.
+- parser/inspection properties: 64 runs each;
+- cleaner/verification properties: 48 runs each;
+- infrastructure smoke property: 16 runs;
+- generated property input: at most 1,024 bytes;
+- default seed: `0x5ec00009`.
 
-No random fuzzing runs in normal CI, and no property/fuzz dependency is
-currently installed. A future sprint can add reproducible seeded property tests
-or dedicated fuzz harnesses if their coverage benefit justifies the development
-dependency and CI cost. The deterministic corpus is regression coverage, not a
-proof of parser correctness.
+`PROPERTY_SEED`, `PROPERTY_RUNS`, and `PROPERTY_PATH` override those settings.
+For example, in PowerShell:
+
+```powershell
+$env:PROPERTY_SEED="1589641225"
+$env:PROPERTY_PATH="0:0:1"
+npm test -- tests/property
+```
+
+On failure, fast-check reports the seed, counterexample path, and shrunk input.
+Use both seed and path to replay the minimized counterexample.
+
+## Fuzz harness
+
+The harness builds the package and exercises only the public
+`inspectMetadata`, `cleanMetadata`, and `verifyMetadata` API targets.
+
+```text
+npm run fuzz:smoke
+npm run fuzz -- --seed 9 --runs 10000 --max-bytes 4096 --target all
+```
+
+`fuzz:smoke` is the deterministic CI profile: seed `20260825`, 250 total
+iterations, and a 512-byte input maximum. `fuzz` is the finite local profile:
+seed `0x5ec00009`, 5,000 total iterations, and a 4,096-byte maximum. Supported
+targets are `all`, `inspect`, `clean`, and `verify`. CLI options may also be set
+with `FUZZ_SEED`, `FUZZ_RUNS`, `FUZZ_MAX_BYTES`, `FUZZ_TARGET`, and `FUZZ_PATH`.
+The maximum permitted generated input is 4,096 bytes.
+
+A failure prints its selected target, configured target, seed, run count,
+counterexample path, shrink count, and bounded hexadecimal input. It also prints
+an exact replay command. Runs are iteration-bounded, never elapsed-time or
+infinite campaigns.
+
+## Regression promotion
+
+A generated failure is handled as follows:
+
+```text
+replay seed and path
+  → understand the root cause
+  → minimize with built-in shrinking
+  → fix the production defect
+  → promote the smallest meaningful input to a named corpus/regression test
+  → rerun property and fuzz coverage
+```
+
+A fixed seed alone is not a permanent regression test. The minimal semantic case
+must be persisted so later generator changes cannot hide it.
+
+## Security limits and scope
+
+Security tests use tiny custom input, segment, chunk, IFD entry/depth, metadata
+entry, string, and diagnostic limits. `maxDecompressedBytes` remains unused
+because the library performs no decompression. JPEG scan data, WebP image chunks,
+and PNG IDAT remain opaque; generated testing does not add codecs or decoding.
+
+Property and fuzz testing improve regression confidence but do not prove parser
+correctness or security. The primary protections remain bounded readers, checked
+arithmetic, explicit traversal limits, deterministic parser progress, and
+fail-closed cleaning.

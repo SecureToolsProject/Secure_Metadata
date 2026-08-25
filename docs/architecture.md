@@ -39,8 +39,8 @@ bounded binary primitives
   → format fixture tests
   → deterministic malformed corpus
   → cross-format invariants
-  → future property tests
-  → future fuzzing
+  → reproducible property tests
+  → finite public-API fuzz harness
 ```
 
-Production parsers remain internal. Public operations are the preferred cross-format targets; the shared TIFF parser is directly callable only from test code. See [testing and fuzz readiness](testing.md).
+Production parsers remain internal. Public operations are the fuzz targets; JPEG, WebP, PNG, and shared TIFF internals are imported only by property tests. Generated-test code and `fast-check` remain outside `src`, `dist`, and the npm payload. See [testing and fuzz readiness](testing.md).
