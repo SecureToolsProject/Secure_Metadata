@@ -42,6 +42,10 @@ GPS rational components remain exact numerator/denominator pairs; decimal coordi
 
 `verifyMetadata` supports `absent`, `present`, or `ignore` expectations. Concepts not implemented for a format produce no check rather than implying an exhaustive search. Verification fails closed if metadata reporting reaches its configured entry limit. Single-file verification observes supported container presence or absence and cannot prove provenance or pixel privacy.
 
+## Generated testing
+
+The deterministic corpus is supplemented by fixed-seed property tests and a finite public-API fuzz harness. CI runs only the bounded smoke profile; extended local runs remain explicitly iteration- and input-size-limited. See the [testing model](docs/testing.md) for replay and regression-promotion commands.
+
 ## Security philosophy
 
 Every byte is untrusted. All offsets are interpreted within bounded views, traversal is iterative and limited, and malformed structures fail without unchecked access. PNG image data and compressed metadata are never inflated. Unknown JPEG APP segments, WebP chunks, and PNG ancillary chunks are preserved by default. See the [security model](docs/security-model.md), [architecture](docs/architecture.md), [testing model](docs/testing.md), and [cleaning policy](docs/cleaning-policy.md).

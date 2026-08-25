@@ -6,6 +6,10 @@ All notable changes will be documented here. The project intends to follow seman
 
 ### Added
 
+- Reproducible fast-check properties for arbitrary-byte inspection, parser mutations, subview isolation, limits, cleaners, and fail-closed verification.
+- Finite public-API fuzz harness with explicit seed, iteration, input-size, target, and counterexample-path replay controls.
+- Deterministic 250-iteration fuzz smoke coverage in CI and documented regression-promotion workflow.
+
 - Deterministic malformed-input corpus for generic bytes, JPEG, WebP, PNG, and shared TIFF corruption families.
 - Cross-format invariants for deterministic inspection and cleaning, native-exception containment, fail-closed operations, input immutability, and cheap limit stress.
 - Testing and fuzz-readiness guidance with future property and fuzz targets; random fuzzing remains outside normal CI.
