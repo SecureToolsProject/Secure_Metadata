@@ -17,6 +17,7 @@ import type {
 import { inspectMetadata } from "../inspect.js";
 import { parseJpeg } from "../jpeg/parser.js";
 import type { JpegSegment } from "../jpeg/types.js";
+import { cleanPng } from "../png/clean.js";
 import { cleanWebP } from "../webp/clean.js";
 
 export const DEFAULT_JPEG_CLEANING_POLICY = Object.freeze({
@@ -205,6 +206,9 @@ export function cleanMetadata(
 
   const reader = new ByteReader(bytes);
   const format = detectFormat(reader);
+  if (format === "png") {
+    return cleanPng(bytes, policy);
+  }
   if (format === "webp") {
     return cleanWebP(bytes, policy);
   }
