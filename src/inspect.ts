@@ -9,6 +9,8 @@ import type {
 } from "./core/types.js";
 import { inspectJpegMetadata } from "./jpeg/metadata.js";
 import { parseJpeg } from "./jpeg/parser.js";
+import { inspectWebPMetadata } from "./webp/metadata.js";
+import { parseWebP } from "./webp/parser.js";
 
 export function inspectMetadata(
   input: BinaryInput,
@@ -66,6 +68,21 @@ export function inspectMetadata(
     };
   }
 
+  if (format === "webp") {
+    const webp = parseWebP(
+      reader,
+      resolveParseLimit("maxChunks", options?.limits?.maxChunks),
+    );
+    return {
+      format,
+      size: bytes.byteLength,
+      inspectionStatus: webp.complete
+        ? "container-inspected"
+        : "container-partial",
+      entries: inspectWebPMetadata(webp),
+      diagnostics: webp.diagnostics,
+    };
+  }
   return {
     format,
     size: bytes.byteLength,
