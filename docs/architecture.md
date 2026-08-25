@@ -31,3 +31,16 @@ Traversal validates byte order, magic, complete IFD tables, field sizes, offset 
 - `metadata-inspected`: reserved for future exhaustive metadata decoders.
 
 A report includes `metadataTruncated: true` when its entry budget is reached; a diagnostic is also emitted when the diagnostic budget permits. Verification fails closed rather than deriving absence from a truncated report.
+
+## Testing layers
+
+```text
+bounded binary primitives
+  → format fixture tests
+  → deterministic malformed corpus
+  → cross-format invariants
+  → future property tests
+  → future fuzzing
+```
+
+Production parsers remain internal. Public operations are the preferred cross-format targets; the shared TIFF parser is directly callable only from test code. See [testing and fuzz readiness](testing.md).

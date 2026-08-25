@@ -6,6 +6,10 @@ All notable changes will be documented here. The project intends to follow seman
 
 ### Added
 
+- Deterministic malformed-input corpus for generic bytes, JPEG, WebP, PNG, and shared TIFF corruption families.
+- Cross-format invariants for deterministic inspection and cleaning, native-exception containment, fail-closed operations, input immutability, and cheap limit stress.
+- Testing and fuzz-readiness guidance with future property and fuzz targets; random fuzzing remains outside normal CI.
+
 - Bounded PNG chunk parsing with chunk-count, IEND, trailing-data, type, range, CRC-field, and compact CRC-32 validation.
 - PNG text, exact XMP `iTXt`, `eXIf`, ICC, timestamp, rendering/color, APNG, and unknown ancillary classification.
 - Shared TIFF/EXIF field decoding for exact bounded PNG `eXIf` data views.
