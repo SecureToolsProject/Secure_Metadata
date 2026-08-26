@@ -1,8 +1,8 @@
 # Release process
 
-This document defines the `v0.1.0` release-candidate process. It does not authorize publishing, tagging, or creating a GitHub release during development.
+This document defines release validation and publication. `v0.1.0` is published as an immutable GitHub release from commit `352258ec413a838dfe8b9146370505f125b5ae10`; it is not published to npm.
 
-## Candidate validation
+## Release validation
 
 Start from a clean commit on the intended release revision, with Node.js 24 and Chromium installed for Playwright. Run:
 
@@ -24,16 +24,16 @@ The browser artifact is a same-origin deployment asset, not a CDN dependency. Pi
 
 ## Licensing
 
-The published package has no runtime dependencies and the bundled JavaScript contains project source only. Dev tooling is audited by `npm run license:audit`; its accepted SPDX set is explicit in that script. No third-party NOTICE file is currently required. Re-run the audit and review bundled content whenever dependencies or build configuration change.
+The packaged library has no runtime dependencies and the bundled JavaScript contains project source only. Dev tooling is audited by `npm run license:audit`; its accepted SPDX set is explicit in that script. No third-party NOTICE file is currently required. Re-run the audit and review bundled content whenever dependencies or build configuration change.
 
 ## Trusted Publishing
 
-Before the first publication, an npm package owner must configure Trusted Publishing for this repository, the `publish.yml` workflow, and the `npm` GitHub environment. The workflow uses GitHub OIDC (`id-token: write`) and `npm publish --provenance`; it intentionally contains no long-lived npm token.
+No npm publication has been performed. Before any future npm publication, an npm package owner must configure Trusted Publishing for this repository, the `publish.yml` workflow, and the `npm` GitHub environment. The workflow uses GitHub OIDC (`id-token: write`) and `npm publish --provenance`; it intentionally contains no long-lived npm token.
 
-After merging an approved release commit:
+For a future release after merging an approved release commit:
 
 1. confirm all required checks pass on the exact commit;
-2. create the signed or annotated tag `v0.1.0` on that commit;
+2. create the signed or annotated version tag on that commit without moving an existing release tag;
 3. push the tag and review the publish workflow and npm provenance attestation;
 4. create GitHub release notes from `CHANGELOG.md` and attach the independently verified files from `release/` if desired;
 5. verify installation from npm and the same-origin browser artifact in a fresh consumer.

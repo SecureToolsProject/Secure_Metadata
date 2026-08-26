@@ -1,6 +1,6 @@
 # secure-metadata
 
-`secure-metadata` is a pre-release TypeScript library for deterministic, security-conscious inspection, cleaning, and verification of metadata in binary image formats. It is built for privacy-first, entirely local use with no analytics, telemetry, network access, runtime CDN, or pixel decoding.
+`secure-metadata` is a pre-1.0 TypeScript library for deterministic, security-conscious inspection, cleaning, and verification of metadata in binary image formats. It is built for privacy-first, entirely local use with no analytics, telemetry, network access, runtime CDN, or pixel decoding.
 
 ## Development status
 
@@ -22,11 +22,9 @@ JPEG supports bounded inspection, common TIFF/EXIF field decoding, cleaning, and
 
 ## Installation
 
-After publication, install from npm:
+The package is not currently published to npm. Source and release artifacts for `v0.1.0` are available from the [GitHub release](https://github.com/SecureToolsProject/Secure_Metadata/releases/tag/v0.1.0).
 
-    npm install secure-metadata
-
-Node.js 20 or newer is required. Browser consumers may import the secure-metadata/browser entry through a bundler, or deploy the versioned standalone browser artifact from the release candidate on the same origin. The library never loads code from a CDN.
+Node.js 20 or newer is required. Browser consumers can verify the released version, license, and SHA-256 checksum, then vendor the standalone browser artifact on the same origin. The library never loads code from a CDN.
 
 ## Public API
 
@@ -60,7 +58,7 @@ The library does not perform image decoding or encoding, visual redaction, pixel
 
 ## Secure Tools ecosystem
 
-This is an independent open-source library in the broader Secure Tools ecosystem. Future integration will use a pinned browser artifact rather than coupling application code to this repository.
+This is an independent open-source library in the broader Secure Tools ecosystem. Future integration will verify the release version, license, and SHA-256 checksum, then vendor the pinned browser artifact on the same origin rather than coupling application code to this repository.
 
 ## License
 
