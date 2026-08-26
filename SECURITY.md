@@ -2,12 +2,12 @@
 
 ## Supported versions
 
-| Version | Support                            |
-| ------- | ---------------------------------- |
-| 0.1.x   | Supported after public publication |
-| < 0.1   | Not supported                      |
+| Version | Support                           |
+| ------- | --------------------------------- |
+| 0.1.x   | Supported through GitHub releases |
+| < 0.1   | Not supported                     |
 
-The current repository may contain an unpublished release candidate. A candidate is not a supported npm release until publication completes.
+`v0.1.0` is published as a GitHub release. The package is not published to npm.
 
 ## Reporting a vulnerability
 

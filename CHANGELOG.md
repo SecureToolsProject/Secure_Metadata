@@ -4,7 +4,7 @@ All notable changes will be documented here. The project intends to follow seman
 
 ## Unreleased
 
-## 0.1.0 - Release candidate
+## 0.1.0 - 2026-08-26
 
 ### Added
 
