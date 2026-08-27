@@ -1,6 +1,6 @@
 # Release process
 
-This document defines release validation and publication. `v0.1.0` is published as an immutable GitHub release from commit `352258ec413a838dfe8b9146370505f125b5ae10`; it is not published to npm.
+This document defines release validation and publication. `v0.1.0` is published as an immutable GitHub release from commit `352258ec413a838dfe8b9146370505f125b5ae10`; it is not published to npm. `v0.1.1` is the current patch release candidate and must not be tagged or published until its final main-branch commit and artifacts pass this process.
 
 ## Release validation
 
@@ -14,8 +14,8 @@ The command performs a clean install; formatting, lint, type, unit/property, bou
 
 Outputs are written to ignored `release/`:
 
-- `secure-metadata-0.1.0.tgz` — npm package;
-- `secure-metadata-0.1.0.browser.js` — standalone browser ESM artifact;
+- `secure-metadata-0.1.1.tgz` — npm package;
+- `secure-metadata-0.1.1.browser.js` — standalone browser ESM artifact;
 - `SHA256SUMS` — version, source commit, filenames, and SHA-256 hashes.
 
 Verify a transferred artifact set with `npm run release:verify`. `npm run package:audit` separately verifies the exact npm payload and imports the packed package through both public entry points.

@@ -7,7 +7,7 @@
 Current implementation:
 
 - bounded binary input and endian-aware read core;
-- JPEG inspection, common TIFF/EXIF decoding, whole-segment Privacy Clean, and verification;
+- JPEG inspection, common TIFF/EXIF decoding, Orientation-preserving Privacy Clean, and verification;
 - WebP RIFF/chunk inspection, EXIF/XMP/ICC container detection, Privacy Clean, and verification;
 - PNG chunk inspection with text, XMP, EXIF, ICC, timestamp, rendering, and APNG classification;
 - shared TIFF/EXIF decoding for JPEG EXIF and PNG `eXIf` payloads;
@@ -40,7 +40,7 @@ import {
 
 GPS rational components remain exact numerator/denominator pairs; decimal coordinates are not derived. Unknown TIFF tags and MakerNote are represented structurally without dumping or recursively parsing their payloads.
 
-`DEFAULT_CLEANING_POLICY` is the authoritative semantic default: remove recognized EXIF, XMP, IPTC, comments, ordinary text, and standalone timestamps; preserve ICC, unknown, rendering, and image data. Each format maps only applicable concepts to physical containers. The deprecated `preserveColorProfiles` alias is used only when explicit `preserveIcc` is absent.
+`DEFAULT_CLEANING_POLICY` is the authoritative semantic default: remove recognized private EXIF, XMP, IPTC, comments, ordinary text, and standalone timestamps; preserve ICC, unknown, rendering, and image data. For JPEG only, a single valid IFD0 Orientation value from 1 through 8 is rewritten into canonical Orientation-only EXIF so display rotation survives cleaning; all other EXIF fields are removed. Each format maps only applicable concepts to physical containers. The deprecated `preserveColorProfiles` alias is used only when explicit `preserveIcc` is absent.
 
 `verifyMetadata` supports `absent`, `present`, or `ignore` expectations. Concepts not implemented for a format produce no check rather than implying an exhaustive search. Verification fails closed if metadata reporting reaches its configured entry limit. Single-file verification observes supported container presence or absence and cannot prove provenance or pixel privacy.
 
@@ -58,7 +58,7 @@ The library does not perform image decoding or encoding, visual redaction, pixel
 
 ## Secure Tools ecosystem
 
-This is an independent open-source library in the broader Secure Tools ecosystem. Future integration will verify the release version, license, and SHA-256 checksum, then vendor the pinned browser artifact on the same origin rather than coupling application code to this repository.
+This is an independent open-source library in the broader Secure Tools ecosystem. Secure Tools should upgrade its vendored browser artifact to `v0.1.1` after that release is published, verify the version, license, and SHA-256 checksum, and continue serving the pinned artifact from the same origin rather than coupling application code to this repository.
 
 ## License
 

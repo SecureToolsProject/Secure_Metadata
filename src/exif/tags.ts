@@ -59,7 +59,7 @@ const IFD0_TAGS: Readonly<Record<number, TiffTagDefinition>> = {
   [TIFF_TAG.ORIENTATION]: {
     name: "Orientation",
     namespace: "exif",
-    category: "technical",
+    category: "rendering",
     privacy: "non-sensitive",
   },
   [TIFF_TAG.SOFTWARE]: {

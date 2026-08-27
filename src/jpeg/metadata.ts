@@ -6,6 +6,7 @@ import {
   metadataEntriesFromTiff,
   relocateTiffDiagnostics,
 } from "../exif/metadata.js";
+import { isMinimalOrientationExifPayload } from "../exif/orientation.js";
 import { parseTiff, type TiffParseLimits } from "../exif/tiff.js";
 import { JPEG_MARKER } from "./markers.js";
 import type { JpegParseResult, JpegSegment } from "./types.js";
@@ -62,6 +63,7 @@ export function inspectJpegMetadata(
 
     switch (segment.metadataKind) {
       case "exif": {
+        const containerIndex = entries.length;
         if (
           !add({
             id: `jpeg-exif-${String(segment.offset)}`,
@@ -86,6 +88,20 @@ export function inspectJpegMetadata(
             (tiffLimits.maxDiagnostics ?? DEFAULT_PARSE_LIMITS.maxDiagnostics) -
             diagnostics.length,
         });
+        const payload = reader.slice(
+          segment.payloadOffset,
+          segment.payloadLength,
+        );
+        if (isMinimalOrientationExifPayload(payload, tiff)) {
+          entries[containerIndex] = {
+            id: `jpeg-exif-${String(segment.offset)}`,
+            namespace: "exif",
+            name: "EXIF Orientation container",
+            category: "rendering",
+            privacy: "non-sensitive",
+            source: source(segment),
+          };
+        }
         entries.push(
           ...metadataEntriesFromTiff(tiff, {
             format: "jpeg",
