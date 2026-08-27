@@ -4,6 +4,15 @@ All notable changes will be documented here. The project intends to follow seman
 
 ## Unreleased
 
+## 0.1.1 - 2026-08-27
+
+### Fixed
+
+- Preserve exactly one valid JPEG IFD0 EXIF Orientation value from 1 through 8 by rewriting it into a minimal endian-preserving EXIF APP1 segment while removing all other EXIF fields.
+- Treat canonical Orientation-only JPEG EXIF as allowed rendering metadata during verification, while rejecting Orientation combined with any other EXIF or GPS metadata.
+- Keep JPEG scan data, ICC, unknown application segments, structural bytes, and trailing data byte-identical during Orientation-preserving cleaning.
+- Fail safely by removing EXIF rather than guessing when Orientation is malformed, out of range, duplicated, conflicting, incomplete, or exceeds configured parsing limits.
+
 ## 0.1.0 - 2026-08-26
 
 ### Added

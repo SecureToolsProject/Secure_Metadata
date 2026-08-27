@@ -14,6 +14,7 @@ import type {
   MetadataChange,
   MetadataNamespace,
 } from "../core/types.js";
+import { preservedOrientationExifPayload } from "../exif/orientation.js";
 import { inspectMetadata } from "../inspect.js";
 import { parseJpeg } from "../jpeg/parser.js";
 import type { JpegSegment } from "../jpeg/types.js";
@@ -110,15 +111,40 @@ function changeFor(
   };
 }
 
-function copyWithoutSegments(
-  input: Uint8Array,
-  removals: readonly JpegSegment[],
-): Uint8Array {
-  const retained: Array<{ offset: number; length: number }> = [];
-  let inputOffset = 0;
-  let outputLength = 0;
+interface SegmentEdit {
+  readonly segment: JpegSegment;
+  readonly replacement?: Uint8Array;
+}
 
-  for (const segment of removals) {
+function jpegApp1Segment(payload: Uint8Array): Uint8Array {
+  const declaredLength = payload.byteLength + 2;
+  if (declaredLength > 0xffff) {
+    throw new SecureMetadataError(
+      "Preserved EXIF Orientation exceeds the JPEG APP1 size limit.",
+      "CLEAN_OUTPUT_SIZE_INVALID",
+    );
+  }
+  const output = new Uint8Array(payload.byteLength + 4);
+  output.set([0xff, 0xe1, declaredLength >>> 8, declaredLength & 0xff]);
+  output.set(payload, 4);
+  return output;
+}
+
+function bytesEqual(left: Uint8Array, right: Uint8Array): boolean {
+  return (
+    left.byteLength === right.byteLength &&
+    left.every((value, index) => value === right[index])
+  );
+}
+
+function copyWithSegmentEdits(
+  input: Uint8Array,
+  edits: readonly SegmentEdit[],
+): Uint8Array {
+  let inputOffset = 0;
+  let outputLength = input.byteLength;
+
+  for (const { segment, replacement } of edits) {
     const end = segment.rangeOffset + segment.rangeLength;
     if (
       !Number.isSafeInteger(segment.rangeOffset) ||
@@ -129,16 +155,14 @@ function copyWithoutSegments(
       end > input.byteLength
     ) {
       throw new SecureMetadataError(
-        "JPEG cleaner produced an invalid removal range.",
+        "JPEG cleaner produced an invalid edit range.",
         "CLEAN_OUTPUT_SIZE_INVALID",
       );
     }
-
-    const length = segment.rangeOffset - inputOffset;
-    retained.push({ offset: inputOffset, length });
-    outputLength += length;
+    outputLength += (replacement?.byteLength ?? 0) - segment.rangeLength;
     if (
       !Number.isSafeInteger(outputLength) ||
+      outputLength < 0 ||
       outputLength > input.byteLength
     ) {
       throw new SecureMetadataError(
@@ -149,32 +173,22 @@ function copyWithoutSegments(
     inputOffset = end;
   }
 
-  const tailLength = input.byteLength - inputOffset;
-  retained.push({ offset: inputOffset, length: tailLength });
-  outputLength += tailLength;
-  if (
-    !Number.isSafeInteger(outputLength) ||
-    outputLength < 0 ||
-    outputLength > input.byteLength
-  ) {
-    throw new SecureMetadataError(
-      "JPEG cleaner output size is invalid.",
-      "CLEAN_OUTPUT_SIZE_INVALID",
-    );
-  }
-
   const output = new Uint8Array(outputLength);
+  inputOffset = 0;
   let outputOffset = 0;
-  for (const range of retained) {
-    output.set(
-      input.subarray(range.offset, range.offset + range.length),
-      outputOffset,
-    );
-    outputOffset += range.length;
+  for (const { segment, replacement } of edits) {
+    const retainedLength = segment.rangeOffset - inputOffset;
+    output.set(input.subarray(inputOffset, segment.rangeOffset), outputOffset);
+    outputOffset += retainedLength;
+    if (replacement !== undefined) {
+      output.set(replacement, outputOffset);
+      outputOffset += replacement.byteLength;
+    }
+    inputOffset = segment.rangeOffset + segment.rangeLength;
   }
+  output.set(input.subarray(inputOffset), outputOffset);
   return output;
 }
-
 export function cleanMetadata(
   input: BinaryInput,
   policy?: CleaningPolicy,
@@ -216,18 +230,68 @@ export function cleanMetadata(
   }
 
   const resolved = normalizeCleaningPolicy(policy);
-  const removals = jpeg.segments.filter((segment) =>
-    shouldRemove(segment, resolved),
-  );
-  const removed = removals.map((segment) => changeFor(segment, "removed"));
-  const preserved = jpeg.segments
-    .filter(
-      (segment) =>
-        (segment.kind === "application" || segment.kind === "comment") &&
-        !shouldRemove(segment, resolved),
-    )
-    .map((segment) => changeFor(segment, "preserved"));
-  const output = copyWithoutSegments(bytes, removals);
+  const orientationCandidates = resolved.removeExif
+    ? jpeg.segments.flatMap((segment) => {
+        if (
+          segment.metadataKind !== "exif" ||
+          segment.payloadOffset === undefined ||
+          segment.payloadLength === undefined
+        ) {
+          return [];
+        }
+        const payload = reader.slice(
+          segment.payloadOffset,
+          segment.payloadLength,
+        );
+        const replacement = preservedOrientationExifPayload(
+          payload,
+          policy?.limits,
+        );
+        return replacement === undefined ? [] : [{ segment, replacement }];
+      })
+    : [];
+  const orientationCandidate =
+    orientationCandidates.length === 1 ? orientationCandidates[0] : undefined;
+  const edits: SegmentEdit[] = [];
+  const orientationPreserved: MetadataChange[] = [];
+
+  for (const segment of jpeg.segments) {
+    if (!shouldRemove(segment, resolved)) {
+      continue;
+    }
+    if (
+      orientationCandidate !== undefined &&
+      segment === orientationCandidate.segment
+    ) {
+      const replacement = jpegApp1Segment(orientationCandidate.replacement);
+      orientationPreserved.push({
+        ...changeFor(segment, "preserved"),
+        name: "EXIF Orientation",
+      });
+      const original = bytes.subarray(
+        segment.rangeOffset,
+        segment.rangeOffset + segment.rangeLength,
+      );
+      if (!bytesEqual(original, replacement)) {
+        edits.push({ segment, replacement });
+      }
+      continue;
+    }
+    edits.push({ segment });
+  }
+
+  const removed = edits.map(({ segment }) => changeFor(segment, "removed"));
+  const preserved = [
+    ...jpeg.segments
+      .filter(
+        (segment) =>
+          (segment.kind === "application" || segment.kind === "comment") &&
+          !shouldRemove(segment, resolved),
+      )
+      .map((segment) => changeFor(segment, "preserved")),
+    ...orientationPreserved,
+  ];
+  const output = copyWithSegmentEdits(bytes, edits);
   const report = inspectMetadata(
     output,
     policy?.limits === undefined ? undefined : { limits: policy.limits },

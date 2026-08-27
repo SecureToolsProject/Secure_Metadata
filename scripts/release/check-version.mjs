@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises";
 const packageJson = JSON.parse(await readFile("package.json", "utf8"));
 const lock = JSON.parse(await readFile("package-lock.json", "utf8"));
 
-assert.equal(packageJson.version, "0.1.0");
+assert.equal(packageJson.version, "0.1.1");
 assert.equal(lock.version, packageJson.version);
 assert.equal(lock.packages[""].version, packageJson.version);
 

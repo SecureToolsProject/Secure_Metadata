@@ -35,6 +35,29 @@ export const DEFAULT_PNG_VERIFICATION_POLICY = Object.freeze({
   icc: "ignore",
 } satisfies Record<string, VerificationExpectation>);
 
+function namespaceIsPresent(
+  report: ReturnType<typeof inspectMetadata>,
+  namespace: VerificationCheck["namespace"],
+): boolean {
+  if (report.format !== "jpeg" || namespace !== "exif") {
+    return report.entries.some((entry) => entry.namespace === namespace);
+  }
+
+  const exifEntries = report.entries.filter(
+    (entry) => entry.namespace === "exif" || entry.namespace === "gps",
+  );
+  return (
+    exifEntries.length !== 0 &&
+    !(
+      exifEntries.length === 2 &&
+      exifEntries.some(
+        (entry) => entry.name === "EXIF Orientation container",
+      ) &&
+      exifEntries.some((entry) => entry.name === "Orientation")
+    )
+  );
+}
+
 export function verifyMetadata(
   input: BinaryInput,
   expectation?: VerificationPolicy,
@@ -108,9 +131,7 @@ export function verifyMetadata(
       continue;
     }
 
-    const present = report.entries.some(
-      (entry) => entry.namespace === namespace,
-    );
+    const present = namespaceIsPresent(report, namespace);
     const actual = present ? "present" : "absent";
     checks.push({
       namespace,

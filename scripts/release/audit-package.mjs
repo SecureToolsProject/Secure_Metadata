@@ -6,7 +6,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { npmCommand, run } from "./shared.mjs";
 
 const packageJson = JSON.parse(await readFile("package.json", "utf8"));
-assert.equal(packageJson.version, "0.1.0");
+assert.equal(packageJson.version, "0.1.1");
 assert.equal(packageJson.license, "MIT");
 assert.equal(
   packageJson.repository.url,
